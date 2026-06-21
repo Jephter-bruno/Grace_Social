@@ -1,0 +1,96 @@
+Automatically Publish Videos to Realms
+Every video uploaded anywhere in the application should automatically appear in the Realms section.
+Users should not need to create a separate Realm after uploading a video.
+
+Videos posted from:
+
+Home Feed
+Communities
+User Profiles
+Bible Study Groups
+Church Communities
+
+should automatically be indexed and displayed in Realms.
+
+Realms should become the central video discovery experience across the platform.
+Videos should appear in:
+User's Realms tab
+Followers' feeds
+Explore/Search
+Community feeds (where applicable)
+Realms feed
+Allow users to optionally disable "Show in Realms" before publishing.
+Fix All Non-Functional Settings Options
+Perform a complete audit of the Settings page.
+Identify and fix every broken, inactive, placeholder, or partially implemented setting.
+Ensure every settings option performs the intended action and persists changes in the database.
+Add proper success/error messages for all settings changes.
+Verify all settings continue working after logout and login.
+Global Language & Translation System
+
+Add a complete application-wide translation system.
+
+Requirements:
+
+Support all major languages available through modern translation providers.
+Include a language selector under Settings.
+Allow users to instantly switch app language.
+Translate:
+Navigation menus
+Settings
+Buttons
+Forms
+Notifications
+Community content
+Comments
+Messages
+Bible content (where translations are available)
+Prayer requests
+Daily verses
+User-generated content (optional "Translate" button)
+
+Suggested language support includes but is not limited to:
+
+English
+Swahili
+French
+Spanish
+Portuguese
+German
+Italian
+Dutch
+Russian
+Arabic
+Hebrew
+Turkish
+Hindi
+Bengali
+Urdu
+Chinese (Simplified)
+Chinese (Traditional)
+Japanese
+Korean
+Indonesian
+Vietnamese
+Thai
+Filipino
+Malay
+Greek
+Polish
+Romanian
+Ukrainian
+Czech
+Hungarian
+Danish
+Norwegian
+Swedish
+Finnish
+
+Additional Requirements:
+
+Automatically detect device language on first launch.
+Allow manual language override.
+Remember language preferences across devices.
+Add a "Translate Post", "Translate Comment", and "Translate Message" option.
+Use production-grade internationalization (i18n) architecture.
+Ensure language changes update the entire app without requiring a restart.

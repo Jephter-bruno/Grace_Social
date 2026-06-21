@@ -21,7 +21,11 @@ function CommunityCard({ community }: { community: Community }) {
   const { toggleJoin } = useApp();
 
   return (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+    <TouchableOpacity
+      style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+      activeOpacity={0.82}
+      onPress={() => router.push({ pathname: '/community-detail', params: { id: community.id } })}
+    >
       <View style={[styles.cardIcon, { backgroundColor: community.color + '22' }]}>
         <Feather name={community.iconName as any} size={22} color={community.color} />
       </View>
@@ -37,26 +41,29 @@ function CommunityCard({ community }: { community: Community }) {
           </Text>
         </View>
       </View>
-      <TouchableOpacity
-        style={[
-          styles.joinBtn,
-          {
-            backgroundColor: community.isJoined ? colors.muted : community.color,
-            borderColor: community.color,
-          },
-        ]}
-        onPress={() => toggleJoin(community.id)}
-      >
-        <Text
+      <View style={styles.cardRight}>
+        <TouchableOpacity
           style={[
-            styles.joinText,
-            { color: community.isJoined ? community.color : '#fff' },
+            styles.joinBtn,
+            {
+              backgroundColor: community.isJoined ? colors.muted : community.color,
+              borderColor: community.color,
+            },
           ]}
+          onPress={(e) => { e.stopPropagation?.(); toggleJoin(community.id); }}
         >
-          {community.isJoined ? 'Joined' : 'Join'}
-        </Text>
-      </TouchableOpacity>
-    </View>
+          <Text
+            style={[
+              styles.joinText,
+              { color: community.isJoined ? community.color : '#fff' },
+            ]}
+          >
+            {community.isJoined ? 'Joined' : 'Join'}
+          </Text>
+        </TouchableOpacity>
+        <Feather name="chevron-right" size={14} color={colors.mutedForeground} />
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -241,6 +248,11 @@ const styles = StyleSheet.create({
   metaText: {
     fontSize: 11,
     fontFamily: 'Inter_400Regular',
+  },
+  cardRight: {
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 0,
   },
   joinBtn: {
     paddingHorizontal: 14,

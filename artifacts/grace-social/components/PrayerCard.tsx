@@ -5,6 +5,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { AvatarCircle } from '@/components/AvatarCircle';
 import { CommentsModal } from '@/components/CommentsModal';
+import { VersePickerModal } from '@/components/VersePickerModal';
 import { Prayer, useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 
@@ -26,14 +27,22 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 export function PrayerCard({ prayer }: { prayer: Prayer }) {
   const colors = useColors();
-  const { togglePray } = useApp();
+  const { togglePray, addPrayerComment } = useApp();
   const [commentsVisible, setCommentsVisible] = useState(false);
+  const [versePickerVisible, setVersePickerVisible] = useState(false);
+  const [verseReactions, setVerseReactions] = useState<{ reference: string; text: string }[]>([]);
   const iconName = CATEGORY_ICONS[prayer.category] ?? 'heart';
   const catColor = CATEGORY_COLORS[prayer.category] ?? colors.accent;
 
   const handlePray = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     togglePray(prayer.id);
+  };
+
+  const handleVerseSelect = (verse: { reference: string; text: string }) => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setVerseReactions((prev) => [...prev, verse]);
+    addPrayerComment(prayer.id, `📖 ${verse.reference}: "${verse.text}"`);
   };
 
   return (
@@ -53,6 +62,21 @@ export function PrayerCard({ prayer }: { prayer: Prayer }) {
       </View>
 
       <Text style={[styles.request, { color: colors.foreground }]}>{prayer.request}</Text>
+
+      {verseReactions.length > 0 && (
+        <View style={[styles.verseReactions, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+          <View style={styles.verseReactionsHeader}>
+            <Feather name="book-open" size={12} color={colors.primary} />
+            <Text style={[styles.verseReactionsLabel, { color: colors.primary }]}>Scripture Responses</Text>
+          </View>
+          {verseReactions.map((v, i) => (
+            <View key={i} style={[styles.verseReactionItem, { borderLeftColor: colors.primary }]}>
+              <Text style={[styles.verseReactionRef, { color: colors.primary }]}>{v.reference}</Text>
+              <Text style={[styles.verseReactionText, { color: colors.foreground }]} numberOfLines={2}>"{v.text}"</Text>
+            </View>
+          ))}
+        </View>
+      )}
 
       <View style={[styles.footer, { borderTopColor: colors.border }]}>
         <TouchableOpacity
@@ -75,6 +99,14 @@ export function PrayerCard({ prayer }: { prayer: Prayer }) {
             Respond{prayer.comments > 0 ? ` · ${prayer.comments}` : ''}
           </Text>
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.verseBtn, { backgroundColor: colors.accent + '15', borderColor: colors.accent + '50' }]}
+          onPress={() => setVersePickerVisible(true)}
+        >
+          <Feather name="book-open" size={14} color={colors.accent} />
+          <Text style={[styles.verseBtnText, { color: colors.accent }]}>Verse</Text>
+        </TouchableOpacity>
       </View>
 
       <CommentsModal
@@ -83,6 +115,12 @@ export function PrayerCard({ prayer }: { prayer: Prayer }) {
         entityType="prayer"
         title="Prayer Responses"
         onClose={() => setCommentsVisible(false)}
+      />
+
+      <VersePickerModal
+        visible={versePickerVisible}
+        onClose={() => setVersePickerVisible(false)}
+        onSelect={handleVerseSelect}
       />
     </View>
   );
@@ -97,9 +135,17 @@ const styles = StyleSheet.create({
   badge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
   badgeText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
   request: { fontSize: 14, fontFamily: 'Inter_400Regular', lineHeight: 21 },
-  footer: { flexDirection: 'row', gap: 12, paddingTop: 12, borderTopWidth: 1, alignItems: 'center' },
-  prayBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
+  verseReactions: { borderRadius: 12, borderWidth: 1, padding: 12, gap: 8 },
+  verseReactionsHeader: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 2 },
+  verseReactionsLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 0.5 },
+  verseReactionItem: { borderLeftWidth: 2.5, paddingLeft: 10, gap: 2 },
+  verseReactionRef: { fontSize: 12, fontFamily: 'Inter_700Bold' },
+  verseReactionText: { fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 18 },
+  footer: { flexDirection: 'row', gap: 8, paddingTop: 12, borderTopWidth: 1, alignItems: 'center' },
+  prayBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
   prayText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  respondBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
+  respondBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
   respondText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
+  verseBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1 },
+  verseBtnText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
 });
