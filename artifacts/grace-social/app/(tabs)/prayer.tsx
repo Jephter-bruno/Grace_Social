@@ -76,6 +76,9 @@ export default function PrayerScreen() {
         <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/bible')}>
           <Feather name="book-open" size={22} color={colors.foreground} />
         </TouchableOpacity>
+        <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/prayer-groups')}>
+          <Feather name="users" size={22} color={colors.foreground} />
+        </TouchableOpacity>
         <TouchableOpacity style={styles.iconBtn} onPress={() => setShowModal(true)}>
           <Feather name="plus" size={24} color={colors.foreground} />
         </TouchableOpacity>

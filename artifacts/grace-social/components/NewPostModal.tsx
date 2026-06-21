@@ -30,9 +30,10 @@ const IMAGE_OPTIONS = [
 interface Props {
   visible: boolean;
   onClose: () => void;
+  initialVerse?: { reference: string; text: string } | null;
 }
 
-export function NewPostModal({ visible, onClose }: Props) {
+export function NewPostModal({ visible, onClose, initialVerse }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { addPost } = useApp();
@@ -45,6 +46,14 @@ export function NewPostModal({ visible, onClose }: Props) {
   const [verseText, setVerseText] = useState('');
   const [selectedImage, setSelectedImage] = useState<number | null>(null);
   const [submitted, setSubmitted] = useState(false);
+
+  React.useEffect(() => {
+    if (visible && initialVerse) {
+      setVerseEnabled(true);
+      setVerseRef(initialVerse.reference);
+      setVerseText(initialVerse.text);
+    }
+  }, [visible, initialVerse]);
 
   const captionRef = useRef<TextInput>(null);
 

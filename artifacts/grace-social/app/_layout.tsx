@@ -32,6 +32,7 @@ function RootLayoutNav() {
       <Stack.Screen name="search" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="bible" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="messages" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="prayer-groups" options={{ headerShown: false, presentation: 'modal' }} />
     </Stack>
   );
 }

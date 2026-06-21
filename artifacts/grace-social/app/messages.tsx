@@ -102,6 +102,7 @@ export default function MessagesScreen() {
   const [conversations, setConversations] = useState(INITIAL_CONVERSATIONS);
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [messageText, setMessageText] = useState('');
+  const [search, setSearch] = useState('');
   const inputRef = useRef<TextInput>(null);
 
   const openConversation = (conv: Conversation) => {
@@ -216,20 +217,115 @@ export default function MessagesScreen() {
     );
   }
 
+  const [showNewConv, setShowNewConv] = useState(false);
+  const [newName, setNewName] = useState('');
+
+  const filteredConvs = search.trim()
+    ? conversations.filter((c) =>
+        c.userName.toLowerCase().includes(search.toLowerCase()) ||
+        c.lastMessage.toLowerCase().includes(search.toLowerCase())
+      )
+    : conversations;
+
+  const totalUnread = conversations.reduce((sum, c) => sum + c.unread, 0);
+
+  const startNewConversation = () => {
+    if (!newName.trim()) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const colors_arr = ['#4A90A4', '#E91E8C', '#27AE60', '#9C27B0', '#FF5722', '#FF9800'];
+    const initials = newName.trim().split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2);
+    const newConv: Conversation = {
+      id: Date.now().toString(),
+      userName: newName.trim(),
+      userInitials: initials,
+      userColor: colors_arr[Math.floor(Math.random() * colors_arr.length)],
+      lastMessage: '',
+      time: 'Now',
+      unread: 0,
+      messages: [],
+    };
+    setConversations((prev) => [newConv, ...prev]);
+    setNewName('');
+    setShowNewConv(false);
+    setActiveConv(newConv);
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 8, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.foreground }]}>Messages</Text>
-        <TouchableOpacity style={styles.iconBtn}>
-          <Feather name="edit" size={20} color={colors.foreground} />
+        <View style={{ flex: 1, marginLeft: 8 }}>
+          <Text style={[styles.title, { color: colors.foreground }]}>Messages</Text>
+          {totalUnread > 0 && (
+            <Text style={[styles.unreadHint, { color: colors.primary }]}>
+              {totalUnread} unread
+            </Text>
+          )}
+        </View>
+        <TouchableOpacity
+          style={[styles.newMsgBtn, { backgroundColor: colors.primary }]}
+          onPress={() => setShowNewConv(true)}
+        >
+          <Feather name="edit" size={15} color="#fff" />
+          <Text style={styles.newMsgText}>New</Text>
         </TouchableOpacity>
       </View>
 
+      <View style={[styles.searchBar, { backgroundColor: colors.muted, marginHorizontal: 14, marginVertical: 10 }]}>
+        <Feather name="search" size={16} color={colors.mutedForeground} />
+        <TextInput
+          style={[styles.searchInput, { color: colors.foreground }]}
+          placeholder="Search messages..."
+          placeholderTextColor={colors.mutedForeground}
+          value={search}
+          onChangeText={setSearch}
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')}>
+            <Feather name="x" size={15} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {showNewConv && (
+        <View style={[styles.newConvBanner, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.newConvLabel, { color: colors.foreground }]}>New Conversation</Text>
+          <View style={[styles.newConvRow, { backgroundColor: colors.muted }]}>
+            <Feather name="user" size={16} color={colors.mutedForeground} />
+            <TextInput
+              style={[styles.newConvInput, { color: colors.foreground }]}
+              placeholder="Enter name..."
+              placeholderTextColor={colors.mutedForeground}
+              value={newName}
+              onChangeText={setNewName}
+              autoFocus
+              onSubmitEditing={startNewConversation}
+            />
+          </View>
+          <View style={styles.newConvBtns}>
+            <TouchableOpacity
+              style={[styles.newConvCancel, { borderColor: colors.border }]}
+              onPress={() => { setShowNewConv(false); setNewName(''); }}
+            >
+              <Text style={[styles.newConvCancelText, { color: colors.mutedForeground }]}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.newConvStart, { backgroundColor: newName.trim() ? colors.primary : colors.muted }]}
+              onPress={startNewConversation}
+              disabled={!newName.trim()}
+            >
+              <Text style={[styles.newConvStartText, { color: newName.trim() ? '#fff' : colors.mutedForeground }]}>
+                Start
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       <FlatList
-        data={conversations}
+        data={filteredConvs}
         keyExtractor={(item) => item.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: isWeb ? 34 : insets.bottom + 20 }}
@@ -252,25 +348,34 @@ export default function MessagesScreen() {
                 <Text style={[styles.convName, { color: colors.foreground }]}>{item.userName}</Text>
                 <Text style={[styles.convTime, { color: colors.mutedForeground }]}>{item.time}</Text>
               </View>
-              <Text
-                style={[
-                  styles.convLast,
-                  { color: item.unread > 0 ? colors.foreground : colors.mutedForeground },
-                  item.unread > 0 && { fontFamily: 'Inter_600SemiBold' },
-                ]}
-                numberOfLines={1}
-              >
-                {item.lastMessage}
-              </Text>
+              {item.lastMessage ? (
+                <Text
+                  style={[
+                    styles.convLast,
+                    { color: item.unread > 0 ? colors.foreground : colors.mutedForeground },
+                    item.unread > 0 && { fontFamily: 'Inter_600SemiBold' },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {item.lastMessage}
+                </Text>
+              ) : (
+                <Text style={[styles.convLast, { color: colors.primary, fontFamily: 'Inter_500Medium' }]}>
+                  Say hello 👋
+                </Text>
+              )}
             </View>
+            <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
           </TouchableOpacity>
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Feather name="message-circle" size={48} color={colors.mutedForeground} />
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No Messages Yet</Text>
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+              {search.trim() ? 'No results found' : 'No Messages Yet'}
+            </Text>
             <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>
-              Connect with your faith community
+              {search.trim() ? 'Try a different search term' : 'Connect with your faith community'}
             </Text>
           </View>
         }
@@ -284,9 +389,23 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5 },
   convHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingBottom: 12, borderBottomWidth: 0.5 },
   backBtn: { padding: 4 },
-  title: { flex: 1, fontSize: 18, fontFamily: 'Inter_700Bold', marginLeft: 8 },
+  title: { fontSize: 18, fontFamily: 'Inter_700Bold' },
+  unreadHint: { fontSize: 12, fontFamily: 'Inter_500Medium', marginTop: 1 },
   iconBtn: { padding: 4 },
   spacer: { flex: 1 },
+  newMsgBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 },
+  newMsgText: { color: '#fff', fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  searchBar: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, gap: 8 },
+  searchInput: { flex: 1, fontSize: 15, fontFamily: 'Inter_400Regular' },
+  newConvBanner: { marginHorizontal: 14, marginBottom: 8, borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
+  newConvLabel: { fontSize: 15, fontFamily: 'Inter_700Bold' },
+  newConvRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9 },
+  newConvInput: { flex: 1, fontSize: 15, fontFamily: 'Inter_400Regular' },
+  newConvBtns: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end' },
+  newConvCancel: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, borderWidth: 1 },
+  newConvCancelText: { fontSize: 14, fontFamily: 'Inter_500Medium' },
+  newConvStart: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
+  newConvStartText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
   convRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5 },
   convAvatar: { position: 'relative' },
   unreadBadge: { position: 'absolute', top: -2, right: -2, width: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: '#fff' },

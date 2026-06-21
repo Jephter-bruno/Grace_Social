@@ -18,6 +18,7 @@ import { PostCard } from '@/components/PostCard';
 import { StoryBar } from '@/components/StoryBar';
 import { Post, useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { useEffect } from 'react';
 
 type FeedItem = { type: 'post'; data: Post } | { type: 'ad'; adIndex: number };
 
@@ -34,13 +35,24 @@ function buildFeed(posts: Post[], adEvery = 3): FeedItem[] {
 }
 
 export default function HomeScreen() {
-  const { posts, stories, unreadCount } = useApp();
+  const { posts, stories, unreadCount, pendingVerse, setPendingVerse } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
   const topPad = isWeb ? 67 : insets.top;
   const [showModal, setShowModal] = useState(false);
   const [activePostId, setActivePostId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (pendingVerse) {
+      setShowModal(true);
+    }
+  }, [pendingVerse]);
+
+  const handleModalClose = () => {
+    setShowModal(false);
+    setPendingVerse(null);
+  };
 
   const feedItems = useMemo(() => buildFeed(posts, 3), [posts]);
 
@@ -119,7 +131,7 @@ export default function HomeScreen() {
         <Feather name="edit-2" size={20} color="#fff" />
       </TouchableOpacity>
 
-      <NewPostModal visible={showModal} onClose={() => setShowModal(false)} />
+      <NewPostModal visible={showModal} onClose={handleModalClose} initialVerse={pendingVerse} />
     </View>
   );
 }

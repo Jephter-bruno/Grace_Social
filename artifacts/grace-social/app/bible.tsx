@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 
 interface Verse {
@@ -79,6 +80,7 @@ type TabKey = 'verses' | 'books' | 'search';
 
 export default function BibleScreen() {
   const colors = useColors();
+  const { setPendingVerse } = useApp();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
   const topPad = isWeb ? 67 : insets.top;
@@ -108,6 +110,12 @@ export default function BibleScreen() {
     Share.share({ message: `"${v.text}" — ${v.reference}` });
   };
 
+  const handlePostToFeed = (v: Verse) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setPendingVerse({ reference: v.reference, text: v.text });
+    router.push('/');
+  };
+
   const renderVerse = ({ item }: { item: Verse }) => (
     <View style={[styles.verseCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={styles.verseHeader}>
@@ -115,7 +123,7 @@ export default function BibleScreen() {
         <View style={styles.verseActions}>
           <TouchableOpacity onPress={() => toggleSave(item.reference)} style={styles.iconBtn}>
             <Feather
-              name={savedVerses.has(item.reference) ? 'bookmark' : 'bookmark'}
+              name="bookmark"
               size={18}
               color={savedVerses.has(item.reference) ? colors.primary : colors.mutedForeground}
             />
@@ -126,10 +134,19 @@ export default function BibleScreen() {
         </View>
       </View>
       <Text style={[styles.verseText, { color: colors.foreground }]}>{item.text}</Text>
-      <View style={[styles.verseCat, { backgroundColor: colors.muted }]}>
-        <Text style={[styles.verseCatText, { color: colors.mutedForeground }]}>
-          {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
-        </Text>
+      <View style={styles.verseFooter}>
+        <View style={[styles.verseCat, { backgroundColor: colors.muted }]}>
+          <Text style={[styles.verseCatText, { color: colors.mutedForeground }]}>
+            {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.postToFeedBtn, { backgroundColor: colors.primary }]}
+          onPress={() => handlePostToFeed(item)}
+        >
+          <Feather name="home" size={13} color="#fff" />
+          <Text style={styles.postToFeedText}>Post to Feed</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -161,10 +178,19 @@ export default function BibleScreen() {
       {activeTab === 'verses' && (
         <>
           <View style={[styles.dailyCard, { backgroundColor: colors.primary }]}>
-            <Feather name="sun" size={16} color="#fff" />
-            <Text style={styles.dailyLabel}>Verse of the Day</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Feather name="sun" size={16} color="#fff" />
+              <Text style={styles.dailyLabel}>Verse of the Day</Text>
+            </View>
             <Text style={styles.dailyRef}>{DAILY_VERSE.reference}</Text>
             <Text style={styles.dailyText}>{DAILY_VERSE.text}</Text>
+            <TouchableOpacity
+              style={styles.dailyPostBtn}
+              onPress={() => handlePostToFeed(DAILY_VERSE)}
+            >
+              <Feather name="send" size={13} color={colors.primary} />
+              <Text style={[styles.dailyPostText, { color: colors.primary }]}>Share to Feed</Text>
+            </TouchableOpacity>
           </View>
           <ScrollView
             horizontal
@@ -277,6 +303,8 @@ const styles = StyleSheet.create({
   tab: { flex: 1, alignItems: 'center', paddingVertical: 12 },
   tabText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
   dailyCard: { margin: 12, borderRadius: 16, padding: 16, gap: 6 },
+  dailyPostBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: '#fff', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, alignSelf: 'flex-start', marginTop: 4 },
+  dailyPostText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   dailyLabel: { color: 'rgba(255,255,255,0.75)', fontSize: 12, fontFamily: 'Inter_600SemiBold', letterSpacing: 1 },
   dailyRef: { color: '#fff', fontSize: 17, fontFamily: 'Inter_700Bold' },
   dailyText: { color: 'rgba(255,255,255,0.9)', fontSize: 15, fontFamily: 'Inter_400Regular', lineHeight: 22 },
@@ -285,6 +313,9 @@ const styles = StyleSheet.create({
   catChipText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   verseCard: { borderRadius: 14, padding: 16, borderWidth: 1, gap: 10 },
   verseHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  verseFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 2 },
+  postToFeedBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6 },
+  postToFeedText: { color: '#fff', fontSize: 12, fontFamily: 'Inter_600SemiBold' },
   verseRef: { fontSize: 15, fontFamily: 'Inter_700Bold' },
   verseActions: { flexDirection: 'row', gap: 8 },
   iconBtn: { padding: 4 },

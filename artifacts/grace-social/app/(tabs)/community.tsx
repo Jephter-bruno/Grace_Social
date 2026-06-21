@@ -107,8 +107,8 @@ export default function CommunityScreen() {
         <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/messages')}>
           <Feather name="send" size={22} color={colors.foreground} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.iconBtn}>
-          <Feather name="plus" size={24} color={colors.foreground} />
+        <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/prayer-groups')}>
+          <Feather name="users" size={22} color={colors.foreground} />
         </TouchableOpacity>
       </View>
 

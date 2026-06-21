@@ -119,6 +119,11 @@ export interface UserProfile {
   following: number;
 }
 
+export interface PendingVerse {
+  reference: string;
+  text: string;
+}
+
 interface AppContextType {
   posts: Post[];
   stories: Story[];
@@ -130,7 +135,9 @@ interface AppContextType {
   prayerCommentsByPrayer: Record<string, Comment[]>;
   unreadCount: number;
   userProfile: UserProfile;
+  pendingVerse: PendingVerse | null;
   updateProfile: (updates: Partial<UserProfile>) => void;
+  setPendingVerse: (verse: PendingVerse | null) => void;
   markNotificationRead: (id: string) => void;
   toggleLike: (postId: string) => void;
   toggleSave: (postId: string) => void;
@@ -432,6 +439,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
   const [commentsByPost, setCommentsByPost] = useState<Record<string, Comment[]>>(INITIAL_COMMENTS);
   const [prayerCommentsByPrayer, setPrayerCommentsByPrayer] = useState<Record<string, Comment[]>>(INITIAL_PRAYER_COMMENTS);
+  const [pendingVerse, setPendingVerse] = useState<PendingVerse | null>(null);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
@@ -524,7 +532,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AppContext.Provider value={{ posts, stories, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, updateProfile, markNotificationRead, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, addPrayer, addPost, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, markStorySeen, addStory }}>
+    <AppContext.Provider value={{ posts, stories, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, updateProfile, setPendingVerse, markNotificationRead, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, addPrayer, addPost, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, markStorySeen, addStory }}>
       {children}
     </AppContext.Provider>
   );
