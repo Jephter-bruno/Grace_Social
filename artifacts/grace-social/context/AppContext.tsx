@@ -1,0 +1,537 @@
+import React, { createContext, useCallback, useContext, useState } from 'react';
+import { REEL_VIDEOS, POST_VIDEOS } from '@/constants/videos';
+
+export type PrayerCategory = 'health' | 'family' | 'work' | 'faith' | 'gratitude';
+
+export interface Post {
+  id: string;
+  userId: string;
+  userName: string;
+  userHandle: string;
+  userInitials: string;
+  userColor: string;
+  imageIndex: number | null;
+  videoUri?: string;
+  caption: string;
+  bibleVerse?: { reference: string; text: string };
+  likes: number;
+  comments: number;
+  isLiked: boolean;
+  isSaved: boolean;
+  timestamp: string;
+}
+
+export interface Comment {
+  id: string;
+  postId: string;
+  userName: string;
+  userInitials: string;
+  userColor: string;
+  text: string;
+  timestamp: string;
+  likes: number;
+  isLiked: boolean;
+}
+
+export interface StoryItem {
+  id: string;
+  imageIndex?: number;
+  verseText?: string;
+  verseReference?: string;
+  timestamp: string;
+}
+
+export interface Story {
+  id: string;
+  userName: string;
+  userInitials: string;
+  userColor: string;
+  seen: boolean;
+  isOwn?: boolean;
+  items: StoryItem[];
+}
+
+export interface Prayer {
+  id: string;
+  userName: string;
+  userInitials: string;
+  userColor: string;
+  request: string;
+  prayerCount: number;
+  isPraying: boolean;
+  timestamp: string;
+  category: PrayerCategory;
+  comments: number;
+}
+
+export interface Reel {
+  id: string;
+  userName: string;
+  userHandle: string;
+  userInitials: string;
+  userColor: string;
+  description: string;
+  bibleVerse: string;
+  likes: number;
+  comments: number;
+  isLiked: boolean;
+  imageIndex: number;
+  videoUri?: string;
+  duration: string;
+  isFollowing: boolean;
+}
+
+export interface Community {
+  id: string;
+  name: string;
+  description: string;
+  members: number;
+  category: string;
+  iconName: string;
+  color: string;
+  isJoined: boolean;
+}
+
+export type NotificationType = 'like' | 'comment' | 'prayer' | 'follow';
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  userName: string;
+  userInitials: string;
+  userColor: string;
+  message: string;
+  timestamp: string;
+  postImageIndex?: number;
+  targetTab?: string;
+  isRead: boolean;
+}
+
+export interface UserProfile {
+  name: string;
+  handle: string;
+  bio: string;
+  location: string;
+  website: string;
+  joined: string;
+  postsCount: number;
+  followers: number;
+  following: number;
+}
+
+interface AppContextType {
+  posts: Post[];
+  stories: Story[];
+  prayers: Prayer[];
+  reels: Reel[];
+  communities: Community[];
+  notifications: Notification[];
+  commentsByPost: Record<string, Comment[]>;
+  prayerCommentsByPrayer: Record<string, Comment[]>;
+  unreadCount: number;
+  userProfile: UserProfile;
+  updateProfile: (updates: Partial<UserProfile>) => void;
+  markNotificationRead: (id: string) => void;
+  toggleLike: (postId: string) => void;
+  toggleSave: (postId: string) => void;
+  togglePray: (prayerId: string) => void;
+  toggleFollow: (reelId: string) => void;
+  toggleJoin: (communityId: string) => void;
+  toggleReelLike: (reelId: string) => void;
+  addPrayer: (prayer: Omit<Prayer, 'id'>) => void;
+  addPost: (post: Omit<Post, 'id'>) => void;
+  addComment: (postId: string, text: string) => void;
+  addPrayerComment: (prayerId: string, text: string) => void;
+  toggleCommentLike: (postId: string, commentId: string) => void;
+  togglePrayerCommentLike: (prayerId: string, commentId: string) => void;
+  markAllRead: () => void;
+  markStorySeen: (storyId: string) => void;
+  addStory: (item: Omit<StoryItem, 'id' | 'timestamp'>) => void;
+}
+
+const AppContext = createContext<AppContextType | null>(null);
+
+const INITIAL_STORIES: Story[] = [
+  {
+    id: 'own',
+    userName: 'Add Story',
+    userInitials: 'ME',
+    userColor: '#4A90A4',
+    seen: false,
+    isOwn: true,
+    items: [],
+  },
+  {
+    id: 's1',
+    userName: 'Pastor James',
+    userInitials: 'PJ',
+    userColor: '#D4A843',
+    seen: false,
+    items: [
+      { id: 's1i1', imageIndex: 0, verseText: 'Not giving up meeting together, but encouraging one another.', verseReference: 'Hebrews 10:25', timestamp: '2h ago' },
+    ],
+  },
+  {
+    id: 's2',
+    userName: 'Mary K.',
+    userInitials: 'MK',
+    userColor: '#E91E8C',
+    seen: false,
+    items: [
+      { id: 's2i1', verseText: 'The Lord is my shepherd; I shall not want.', verseReference: 'Psalm 23:1', timestamp: '3h ago' },
+    ],
+  },
+  {
+    id: 's3',
+    userName: 'David L.',
+    userInitials: 'DL',
+    userColor: '#27AE60',
+    seen: true,
+    items: [
+      { id: 's3i1', imageIndex: 1, verseText: 'For I know the plans I have for you, declares the Lord.', verseReference: 'Jeremiah 29:11', timestamp: '5h ago' },
+    ],
+  },
+  {
+    id: 's4',
+    userName: 'Sarah W.',
+    userInitials: 'SW',
+    userColor: '#9B59B6',
+    seen: false,
+    items: [
+      { id: 's4i1', imageIndex: 2, verseText: 'Your word is a lamp for my feet, a light on my path.', verseReference: 'Psalm 119:105', timestamp: '6h ago' },
+    ],
+  },
+  {
+    id: 's5',
+    userName: 'Thomas B.',
+    userInitials: 'TB',
+    userColor: '#E74C3C',
+    seen: true,
+    items: [
+      { id: 's5i1', verseText: 'Cast all your anxiety on him because he cares for you.', verseReference: '1 Peter 5:7', timestamp: '1d ago' },
+    ],
+  },
+  {
+    id: 's6',
+    userName: 'Grace Min.',
+    userInitials: 'GM',
+    userColor: '#F39C12',
+    seen: false,
+    items: [
+      { id: 's6i1', imageIndex: 0, verseText: 'I can do all things through Christ who strengthens me.', verseReference: 'Philippians 4:13', timestamp: '1d ago' },
+    ],
+  },
+];
+
+const INITIAL_POSTS: Post[] = [
+  {
+    id: 'p1',
+    userId: 'u1',
+    userName: 'Pastor James',
+    userHandle: '@pastorjames',
+    userInitials: 'PJ',
+    userColor: '#D4A843',
+    imageIndex: null,
+    videoUri: REEL_VIDEOS[0],
+    caption: "Sunday message highlights: Walking in God's grace. You are loved beyond measure. Don't let the enemy tell you otherwise. Share this with someone who needs it! ❤️",
+    bibleVerse: { reference: 'Ephesians 2:8', text: 'For by grace you have been saved through faith.' },
+    likes: 142,
+    comments: 23,
+    isLiked: false,
+    isSaved: false,
+    timestamp: '2h ago',
+  },
+  {
+    id: 'p2',
+    userId: 'u2',
+    userName: 'Sarah Williams',
+    userHandle: '@sarahw',
+    userInitials: 'SW',
+    userColor: '#9B59B6',
+    imageIndex: 1,
+    caption: "Early morning devotion. God's mercies are new every morning. Starting this day with gratitude in my heart.",
+    bibleVerse: { reference: 'Lamentations 3:22-23', text: "The steadfast love of the Lord never ceases; his mercies never come to an end; they are new every morning." },
+    likes: 89,
+    comments: 11,
+    isLiked: true,
+    isSaved: true,
+    timestamp: '4h ago',
+  },
+  {
+    id: 'p3',
+    userId: 'currentUser',
+    userName: 'You',
+    userHandle: '@gracemember',
+    userInitials: 'ME',
+    userColor: '#4A90A4',
+    imageIndex: 2,
+    caption: "My devotional time this morning. God's word is a lamp unto my feet. So grateful for this quiet time with Him.",
+    bibleVerse: { reference: 'Psalm 119:105', text: 'Your word is a lamp for my feet, a light on my path.' },
+    likes: 56,
+    comments: 8,
+    isLiked: false,
+    isSaved: false,
+    timestamp: '6h ago',
+  },
+  {
+    id: 'p4',
+    userId: 'u3',
+    userName: 'David Livingston',
+    userHandle: '@david_l',
+    userInitials: 'DL',
+    userColor: '#27AE60',
+    imageIndex: null,
+    videoUri: REEL_VIDEOS[1],
+    caption: "Testimony Tuesday: How God turned my darkest moment into my greatest testimony. He works all things for good. Share your testimony in the comments! 🙏",
+    bibleVerse: { reference: 'Romans 8:28', text: 'And we know that in all things God works for the good of those who love him.' },
+    likes: 204,
+    comments: 31,
+    isLiked: false,
+    isSaved: false,
+    timestamp: '8h ago',
+  },
+  {
+    id: 'p5',
+    userId: 'u4',
+    userName: 'Grace Ministry',
+    userHandle: '@graceministry',
+    userInitials: 'GM',
+    userColor: '#F39C12',
+    imageIndex: 0,
+    caption: 'Our youth group had an incredible worship night last night. These young hearts on fire for God give us so much hope for the next generation. Blessed!',
+    likes: 315,
+    comments: 47,
+    isLiked: false,
+    isSaved: false,
+    timestamp: '1d ago',
+  },
+  {
+    id: 'p6',
+    userId: 'currentUser',
+    userName: 'You',
+    userHandle: '@gracemember',
+    userInitials: 'ME',
+    userColor: '#4A90A4',
+    imageIndex: 1,
+    caption: "God's creation never ceases to amaze me. This sunrise reminded me of His faithfulness — every single morning, without fail.",
+    bibleVerse: { reference: 'Psalm 19:1', text: 'The heavens declare the glory of God; the skies proclaim the work of his hands.' },
+    likes: 78,
+    comments: 14,
+    isLiked: false,
+    isSaved: true,
+    timestamp: '2d ago',
+  },
+];
+
+const INITIAL_COMMENTS: Record<string, Comment[]> = {
+  p1: [
+    { id: 'c1a', postId: 'p1', userName: 'Sarah Williams', userInitials: 'SW', userColor: '#9B59B6', text: 'Amen! Such a powerful service. God truly showed up! 🙏', timestamp: '1h ago', likes: 12, isLiked: false },
+    { id: 'c1b', postId: 'p1', userName: 'Mary K.', userInitials: 'MK', userColor: '#E91E8C', text: 'Missed it but felt the anointing from home. Blessings Pastor!', timestamp: '2h ago', likes: 8, isLiked: false },
+    { id: 'c1c', postId: 'p1', userName: 'David L.', userInitials: 'DL', userColor: '#27AE60', text: 'Hebrews 10:25 is one of my favorites. We need each other!', timestamp: '2h ago', likes: 5, isLiked: false },
+  ],
+  p2: [
+    { id: 'c2a', postId: 'p2', userName: 'Thomas B.', userInitials: 'TB', userColor: '#E74C3C', text: 'His mercies are truly new every morning. Beautiful reminder 🌅', timestamp: '3h ago', likes: 7, isLiked: false },
+    { id: 'c2b', postId: 'p2', userName: 'Pastor James', userInitials: 'PJ', userColor: '#D4A843', text: 'This is why we start the day in prayer. Keep it up Sarah!', timestamp: '3h ago', likes: 15, isLiked: false },
+  ],
+  p3: [
+    { id: 'c3a', postId: 'p3', userName: 'Sarah Williams', userInitials: 'SW', userColor: '#9B59B6', text: 'Psalm 119 is such a treasure. Love this!', timestamp: '5h ago', likes: 4, isLiked: false },
+    { id: 'c3b', postId: 'p3', userName: 'Grace Ministry', userInitials: 'GM', userColor: '#F39C12', text: 'Quiet time with God changes everything. 🕊️', timestamp: '6h ago', likes: 9, isLiked: false },
+  ],
+  p4: [
+    { id: 'c4a', postId: 'p4', userName: 'Ruth M.', userInitials: 'RM', userColor: '#8E44AD', text: 'I needed this today. Thank you David 🙏', timestamp: '7h ago', likes: 22, isLiked: false },
+    { id: 'c4b', postId: 'p4', userName: 'Mary K.', userInitials: 'MK', userColor: '#E91E8C', text: "Romans 8:28 is my anchor verse. He's always in control.", timestamp: '8h ago', likes: 18, isLiked: false },
+  ],
+  p5: [
+    { id: 'c5a', postId: 'p5', userName: 'Pastor James', userInitials: 'PJ', userColor: '#D4A843', text: 'The youth are the future of the church! 🔥', timestamp: '1d ago', likes: 31, isLiked: false },
+  ],
+  p6: [
+    { id: 'c6a', postId: 'p6', userName: 'David L.', userInitials: 'DL', userColor: '#27AE60', text: 'The skies truly declare His glory every day!', timestamp: '2d ago', likes: 9, isLiked: false },
+    { id: 'c6b', postId: 'p6', userName: 'Thomas B.', userInitials: 'TB', userColor: '#E74C3C', text: 'Psalm 19:1 — one of the most beautiful verses ever written.', timestamp: '2d ago', likes: 6, isLiked: false },
+  ],
+};
+
+const INITIAL_PRAYERS: Prayer[] = [
+  { id: 'pr1', userName: 'Mary K.', userInitials: 'MK', userColor: '#E91E8C', request: "Please pray for my mother who is going through chemotherapy. She needs God's healing touch and peace during this difficult time. We are trusting in His plan.", prayerCount: 48, isPraying: false, timestamp: '30 min ago', category: 'health', comments: 3 },
+  { id: 'pr2', userName: 'Thomas B.', userInitials: 'TB', userColor: '#E74C3C', request: "Asking for prayer for my marriage. My wife and I are going through a difficult season. We believe God can restore and strengthen our bond. Please intercede with us.", prayerCount: 72, isPraying: true, timestamp: '1h ago', category: 'family', comments: 5 },
+  { id: 'pr3', userName: 'Anna P.', userInitials: 'AP', userColor: '#2980B9', request: "Praying for a new job opportunity. I've been unemployed for 3 months and trust God has something prepared. Seeking direction and daily provision from Him.", prayerCount: 55, isPraying: false, timestamp: '3h ago', category: 'work', comments: 2 },
+  { id: 'pr4', userName: 'Pastor James', userInitials: 'PJ', userColor: '#D4A843', request: "Grateful and praising God today for answered prayer! My son passed his exams and will be starting university in September. God is faithful in all His ways!", prayerCount: 130, isPraying: false, timestamp: '5h ago', category: 'gratitude', comments: 8 },
+  { id: 'pr5', userName: 'Ruth M.', userInitials: 'RM', userColor: '#8E44AD', request: "Going through a season of doubt and spiritual dryness. Asking for prayers to reignite my faith and feel God's presence again. I know He is near.", prayerCount: 93, isPraying: false, timestamp: '7h ago', category: 'faith', comments: 4 },
+  { id: 'pr6', userName: 'James O.', userInitials: 'JO', userColor: '#16A085', request: "My father was just diagnosed with diabetes. Please join us in prayer for his healing and for wisdom for the doctors treating him. We trust in the Great Physician.", prayerCount: 61, isPraying: false, timestamp: '12h ago', category: 'health', comments: 2 },
+];
+
+const INITIAL_PRAYER_COMMENTS: Record<string, Comment[]> = {
+  pr1: [
+    { id: 'pc1a', postId: 'pr1', userName: 'Sarah Williams', userInitials: 'SW', userColor: '#9B59B6', text: 'Standing in prayer for your mother! Believing for complete healing. 🙏', timestamp: '25m ago', likes: 8, isLiked: false },
+    { id: 'pc1b', postId: 'pr1', userName: 'Pastor James', userInitials: 'PJ', userColor: '#D4A843', text: 'We are agreeing with you for divine healing and God\'s peace. Isaiah 53:5.', timestamp: '20m ago', likes: 14, isLiked: false },
+    { id: 'pc1c', postId: 'pr1', userName: 'David L.', userInitials: 'DL', userColor: '#27AE60', text: 'Praying right now. The Great Physician is on the case! 💙', timestamp: '15m ago', likes: 5, isLiked: false },
+  ],
+  pr2: [
+    { id: 'pc2a', postId: 'pr2', userName: 'Mary K.', userInitials: 'MK', userColor: '#E91E8C', text: 'Praying for restoration and renewed love in your marriage! God is a redeemer. ❤️', timestamp: '50m ago', likes: 11, isLiked: false },
+    { id: 'pc2b', postId: 'pr2', userName: 'Ruth M.', userInitials: 'RM', userColor: '#8E44AD', text: 'What God joins together, no man can separate. Holding you both up.', timestamp: '45m ago', likes: 7, isLiked: false },
+    { id: 'pc2c', postId: 'pr2', userName: 'Grace Ministry', userInitials: 'GM', userColor: '#F39C12', text: 'Agreeing in prayer. Our couples ministry is here if you need support. 🙏', timestamp: '30m ago', likes: 9, isLiked: false },
+    { id: 'pc2d', postId: 'pr2', userName: 'Anna P.', userInitials: 'AP', userColor: '#2980B9', text: 'God is faithful. Trust His process. Praying with you!', timestamp: '20m ago', likes: 6, isLiked: false },
+    { id: 'pc2e', postId: 'pr2', userName: 'James O.', userInitials: 'JO', userColor: '#16A085', text: 'Standing in the gap. Believe for the breakthrough!', timestamp: '10m ago', likes: 3, isLiked: false },
+  ],
+  pr3: [
+    { id: 'pc3a', postId: 'pr3', userName: 'Pastor James', userInitials: 'PJ', userColor: '#D4A843', text: 'God is your provider. The right door is opening. Praying! Jeremiah 29:11 🙏', timestamp: '2h ago', likes: 16, isLiked: false },
+    { id: 'pc3b', postId: 'pr3', userName: 'Thomas B.', userInitials: 'TB', userColor: '#E74C3C', text: 'Believing with you. His timing is always perfect. Stay encouraged! 💪', timestamp: '1h ago', likes: 8, isLiked: false },
+  ],
+  pr4: [
+    { id: 'pc4a', postId: 'pr4', userName: 'Mary K.', userInitials: 'MK', userColor: '#E91E8C', text: 'Hallelujah! 🎉 God is so faithful! Congratulations to your son!', timestamp: '4h ago', likes: 22, isLiked: false },
+    { id: 'pc4b', postId: 'pr4', userName: 'Sarah Williams', userInitials: 'SW', userColor: '#9B59B6', text: 'Praising God with you!! This is what answered prayer looks like! 🙌', timestamp: '4h ago', likes: 18, isLiked: false },
+    { id: 'pc4c', postId: 'pr4', userName: 'Ruth M.', userInitials: 'RM', userColor: '#8E44AD', text: "Great is His faithfulness! Such an encouragement to all of us. 🌟", timestamp: '3h ago', likes: 13, isLiked: false },
+  ],
+  pr5: [
+    { id: 'pc5a', postId: 'pr5', userName: 'Pastor James', userInitials: 'PJ', userColor: '#D4A843', text: "Spiritual dry seasons are real, but so is God's presence. He's closer than you think.", timestamp: '6h ago', likes: 19, isLiked: false },
+    { id: 'pc5b', postId: 'pr5', userName: 'Anna P.', userInitials: 'AP', userColor: '#2980B9', text: "I've been there. It passes! God is with you even when you can't feel Him. 💙", timestamp: '6h ago', likes: 11, isLiked: false },
+    { id: 'pc5c', postId: 'pr5', userName: 'Mary K.', userInitials: 'MK', userColor: '#E91E8C', text: "Holding you in prayer. Psalm 42 is for moments like this. 🙏", timestamp: '5h ago', likes: 9, isLiked: false },
+    { id: 'pc5d', postId: 'pr5', userName: 'David L.', userInitials: 'DL', userColor: '#27AE60', text: "The wilderness season always precedes the promised land. Keep going!", timestamp: '3h ago', likes: 15, isLiked: false },
+  ],
+  pr6: [
+    { id: 'pc6a', postId: 'pr6', userName: 'Sarah Williams', userInitials: 'SW', userColor: '#9B59B6', text: 'Praying for your father! By His stripes we are healed. Isaiah 53:5 🙏', timestamp: '11h ago', likes: 10, isLiked: false },
+    { id: 'pc6b', postId: 'pr6', userName: 'Grace Ministry', userInitials: 'GM', userColor: '#F39C12', text: 'Agreeing for wisdom for the medical team and full recovery!', timestamp: '10h ago', likes: 7, isLiked: false },
+  ],
+};
+
+const INITIAL_REELS: Reel[] = [
+  { id: 'r1', userName: 'Pastor James', userHandle: '@pastorjames', userInitials: 'PJ', userColor: '#D4A843', description: "Sunday message: Walking in God's grace. You are loved beyond measure.", bibleVerse: 'For by grace you have been saved through faith. — Ephesians 2:8', likes: 1240, comments: 89, isLiked: false, imageIndex: 0, videoUri: REEL_VIDEOS[0], duration: '2:45', isFollowing: true },
+  { id: 'r2', userName: 'Worship House', userHandle: '@worshiphouse', userInitials: 'WH', userColor: '#9B59B6', description: "Beautiful sunrise worship session this morning. His mercies are truly new every single morning.", bibleVerse: "Great is Thy faithfulness, O God my Father. — Lamentations 3:23", likes: 3560, comments: 234, isLiked: true, imageIndex: 1, videoUri: REEL_VIDEOS[1], duration: '1:58', isFollowing: false },
+  { id: 'r3', userName: 'Grace Ministry', userHandle: '@graceministry', userInitials: 'GM', userColor: '#F39C12', description: "Daily devotional: God's word is alive and active. Start your day in His presence.", bibleVerse: 'Your word is a lamp to my feet. — Psalm 119:105', likes: 892, comments: 56, isLiked: false, imageIndex: 2, videoUri: REEL_VIDEOS[2], duration: '3:12', isFollowing: true },
+  { id: 'r4', userName: 'David Livingston', userHandle: '@david_l', userInitials: 'DL', userColor: '#27AE60', description: "Testimony Tuesday: How God turned my darkest moment into my greatest testimony.", bibleVerse: 'And we know that in all things God works for good. — Romans 8:28', likes: 2100, comments: 178, isLiked: false, imageIndex: 0, videoUri: REEL_VIDEOS[3], duration: '4:30', isFollowing: false },
+  { id: 'r5', userName: 'Sarah Williams', userHandle: '@sarahw', userInitials: 'SW', userColor: '#9B59B6', description: "Morning prayer walk — bringing every burden to the Lord.", bibleVerse: 'Cast all your anxiety on him because he cares for you. — 1 Peter 5:7', likes: 1876, comments: 112, isLiked: false, imageIndex: 1, videoUri: REEL_VIDEOS[4], duration: '2:22', isFollowing: true },
+];
+
+const INITIAL_COMMUNITIES: Community[] = [
+  { id: 'c1', name: 'Youth Group', description: 'A community for young believers aged 13-25 to grow in faith together with purpose.', members: 247, category: 'Youth', iconName: 'zap', color: '#FF6B35', isJoined: true },
+  { id: 'c2', name: 'Worship Team', description: 'Musicians, singers, and worship leaders who serve through music ministry.', members: 89, category: 'Ministry', iconName: 'music', color: '#9B59B6', isJoined: false },
+  { id: 'c3', name: 'Bible Study', description: "Weekly deep dives into Scripture. All levels welcome.", members: 312, category: 'Study', iconName: 'book-open', color: '#27AE60', isJoined: true },
+  { id: 'c4', name: "Women's Fellowship", description: 'A safe, uplifting space for women to connect, pray, and encourage one another.', members: 186, category: 'Fellowship', iconName: 'heart', color: '#E91E8C', isJoined: false },
+  { id: 'c5', name: "Men's Brotherhood", description: 'Men doing life together — accountability, real faith, and brotherly love.', members: 143, category: 'Fellowship', iconName: 'shield', color: '#2980B9', isJoined: false },
+  { id: 'c6', name: 'Prayer Warriors', description: 'Dedicated intercessors committed to praying for the church, community, and world.', members: 204, category: 'Prayer', iconName: 'sun', color: '#F39C12', isJoined: true },
+];
+
+const INITIAL_NOTIFICATIONS: Notification[] = [
+  { id: 'n1', type: 'like', userName: 'Pastor James', userInitials: 'PJ', userColor: '#D4A843', message: 'liked your post about morning devotion.', timestamp: '2m ago', postImageIndex: 2, targetTab: '/', isRead: false },
+  { id: 'n2', type: 'comment', userName: 'Sarah Williams', userInitials: 'SW', userColor: '#9B59B6', message: 'commented: "Psalm 119 is such a treasure! Love this!" ✨', timestamp: '5m ago', postImageIndex: 2, targetTab: '/', isRead: false },
+  { id: 'n3', type: 'prayer', userName: 'Mary K.', userInitials: 'MK', userColor: '#E91E8C', message: 'joined your prayer circle and is praying for you. 🙏', timestamp: '15m ago', targetTab: '/prayer', isRead: false },
+  { id: 'n4', type: 'like', userName: 'Grace Ministry', userInitials: 'GM', userColor: '#F39C12', message: 'liked your sunrise photo.', timestamp: '34m ago', postImageIndex: 1, targetTab: '/', isRead: false },
+  { id: 'n5', type: 'follow', userName: 'Thomas B.', userInitials: 'TB', userColor: '#E74C3C', message: 'started following you.', timestamp: '1h ago', targetTab: '/profile', isRead: false },
+  { id: 'n6', type: 'comment', userName: 'David Livingston', userInitials: 'DL', userColor: '#27AE60', message: 'commented: "The skies truly declare His glory!" 🌄', timestamp: '2h ago', postImageIndex: 1, targetTab: '/', isRead: true },
+  { id: 'n7', type: 'like', userName: 'Anna P.', userInitials: 'AP', userColor: '#2980B9', message: 'and 12 others liked your post.', timestamp: '3h ago', postImageIndex: 2, targetTab: '/', isRead: true },
+  { id: 'n8', type: 'prayer', userName: 'Ruth M.', userInitials: 'RM', userColor: '#8E44AD', message: 'is interceding for you in the Prayer Wall. 💙', timestamp: '5h ago', targetTab: '/prayer', isRead: true },
+  { id: 'n9', type: 'follow', userName: 'James O.', userInitials: 'JO', userColor: '#16A085', message: 'started following you.', timestamp: '1d ago', targetTab: '/profile', isRead: true },
+  { id: 'n10', type: 'like', userName: 'Worship House', userInitials: 'WH', userColor: '#9B59B6', message: 'liked your devotional post.', timestamp: '2d ago', postImageIndex: 2, targetTab: '/', isRead: true },
+];
+
+export function AppProvider({ children }: { children: React.ReactNode }) {
+  const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
+  const [stories, setStories] = useState<Story[]>(INITIAL_STORIES);
+  const [prayers, setPrayers] = useState<Prayer[]>(INITIAL_PRAYERS);
+  const [reels, setReels] = useState<Reel[]>(INITIAL_REELS);
+  const [communities, setCommunities] = useState<Community[]>(INITIAL_COMMUNITIES);
+  const [notifications, setNotifications] = useState<Notification[]>(INITIAL_NOTIFICATIONS);
+  const [commentsByPost, setCommentsByPost] = useState<Record<string, Comment[]>>(INITIAL_COMMENTS);
+  const [prayerCommentsByPrayer, setPrayerCommentsByPrayer] = useState<Record<string, Comment[]>>(INITIAL_PRAYER_COMMENTS);
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+  const toggleLike = useCallback((postId: string) => {
+    setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, isLiked: !p.isLiked, likes: p.isLiked ? p.likes - 1 : p.likes + 1 } : p));
+  }, []);
+
+  const toggleSave = useCallback((postId: string) => {
+    setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, isSaved: !p.isSaved } : p)));
+  }, []);
+
+  const togglePray = useCallback((prayerId: string) => {
+    setPrayers((prev) => prev.map((p) => p.id === prayerId ? { ...p, isPraying: !p.isPraying, prayerCount: p.isPraying ? p.prayerCount - 1 : p.prayerCount + 1 } : p));
+  }, []);
+
+  const toggleReelLike = useCallback((reelId: string) => {
+    setReels((prev) => prev.map((r) => r.id === reelId ? { ...r, isLiked: !r.isLiked, likes: r.isLiked ? r.likes - 1 : r.likes + 1 } : r));
+  }, []);
+
+  const toggleFollow = useCallback((reelId: string) => {
+    setReels((prev) => prev.map((r) => (r.id === reelId ? { ...r, isFollowing: !r.isFollowing } : r)));
+  }, []);
+
+  const toggleJoin = useCallback((communityId: string) => {
+    setCommunities((prev) => prev.map((c) => c.id === communityId ? { ...c, isJoined: !c.isJoined, members: c.isJoined ? c.members - 1 : c.members + 1 } : c));
+  }, []);
+
+  const addPrayer = useCallback((prayer: Omit<Prayer, 'id'>) => {
+    const newPrayer: Prayer = { ...prayer, id: Date.now().toString() + Math.random().toString(36).substr(2, 9) };
+    setPrayers((prev) => [newPrayer, ...prev]);
+  }, []);
+
+  const addPost = useCallback((post: Omit<Post, 'id'>) => {
+    const newPost: Post = { ...post, id: Date.now().toString() + Math.random().toString(36).substr(2, 9) };
+    setPosts((prev) => [newPost, ...prev]);
+  }, []);
+
+  const addComment = useCallback((postId: string, text: string) => {
+    const newComment: Comment = { id: Date.now().toString() + Math.random().toString(36).substr(2, 9), postId, userName: 'You', userInitials: 'ME', userColor: '#4A90A4', text, timestamp: 'just now', likes: 0, isLiked: false };
+    setCommentsByPost((prev) => ({ ...prev, [postId]: [newComment, ...(prev[postId] ?? [])] }));
+    setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, comments: p.comments + 1 } : p)));
+  }, []);
+
+  const addPrayerComment = useCallback((prayerId: string, text: string) => {
+    const newComment: Comment = { id: Date.now().toString() + Math.random().toString(36).substr(2, 9), postId: prayerId, userName: 'You', userInitials: 'ME', userColor: '#4A90A4', text, timestamp: 'just now', likes: 0, isLiked: false };
+    setPrayerCommentsByPrayer((prev) => ({ ...prev, [prayerId]: [newComment, ...(prev[prayerId] ?? [])] }));
+    setPrayers((prev) => prev.map((p) => (p.id === prayerId ? { ...p, comments: p.comments + 1 } : p)));
+  }, []);
+
+  const toggleCommentLike = useCallback((postId: string, commentId: string) => {
+    setCommentsByPost((prev) => ({ ...prev, [postId]: (prev[postId] ?? []).map((c) => c.id === commentId ? { ...c, isLiked: !c.isLiked, likes: c.isLiked ? c.likes - 1 : c.likes + 1 } : c) }));
+  }, []);
+
+  const togglePrayerCommentLike = useCallback((prayerId: string, commentId: string) => {
+    setPrayerCommentsByPrayer((prev) => ({ ...prev, [prayerId]: (prev[prayerId] ?? []).map((c) => c.id === commentId ? { ...c, isLiked: !c.isLiked, likes: c.isLiked ? c.likes - 1 : c.likes + 1 } : c) }));
+  }, []);
+
+  const markAllRead = useCallback(() => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  }, []);
+
+  const markNotificationRead = useCallback((id: string) => {
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
+  }, []);
+
+  const markStorySeen = useCallback((storyId: string) => {
+    setStories((prev) => prev.map((s) => (s.id === storyId ? { ...s, seen: true } : s)));
+  }, []);
+
+  const addStory = useCallback((item: Omit<StoryItem, 'id' | 'timestamp'>) => {
+    const newItem: StoryItem = { ...item, id: Date.now().toString(), timestamp: 'Just now' };
+    setStories((prev) => prev.map((s) => s.isOwn ? { ...s, items: [newItem, ...s.items], seen: false } : s));
+  }, []);
+
+  const INITIAL_USER_PROFILE: UserProfile = {
+    name: 'Grace Member',
+    handle: '@gracemember',
+    bio: 'Walking in faith, one day at a time ✨\nPhil 4:13 | John 3:16 | Rom 8:28',
+    location: 'Faith Community Church',
+    website: 'gracesocial.app',
+    joined: 'Joined January 2024',
+    postsCount: 12,
+    followers: 248,
+    following: 180,
+  };
+  const [userProfile, setUserProfile] = useState<UserProfile>(INITIAL_USER_PROFILE);
+
+  const updateProfile = useCallback((updates: Partial<UserProfile>) => {
+    setUserProfile((prev) => ({ ...prev, ...updates }));
+  }, []);
+
+  return (
+    <AppContext.Provider value={{ posts, stories, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, updateProfile, markNotificationRead, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, addPrayer, addPost, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, markStorySeen, addStory }}>
+      {children}
+    </AppContext.Provider>
+  );
+}
+
+export function useApp() {
+  const ctx = useContext(AppContext);
+  if (!ctx) throw new Error('useApp must be used within AppProvider');
+  return ctx;
+}

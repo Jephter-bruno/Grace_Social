@@ -1,0 +1,278 @@
+# GraceSocial Feature Enhancement & Production Readiness Requirements
+
+1. Add a private messaging feature so members can encourage one another, share Bible verses, prayer requests, images, and voice notes in one-on-one conversations.
+
+2. Videos are currently not playing. Replace all placeholders with real video functionality that supports upload, streaming, autoplay, pause/resume, mute/unmute, fullscreen mode, and smooth playback similar to Instagram Reels.
+
+3. Replace the "Reels" section throughout the application with "Realms" while maintaining all existing functionality.
+
+4. Add a fully functional search experience similar to Instagram, including:
+
+   * Search suggestions
+   * Users
+   * Posts
+   * Communities
+   * Realms
+   * Hashtags
+   * Trending content
+
+5. Replace the default profile icon with the user's profile picture whenever one is available.
+
+6. Allow users to:
+
+   * Join communities
+   * Leave communities
+   * View community dashboards
+   * Browse community posts
+   * View prayer requests
+   * View community events
+   * View member information
+
+7. Add the ability to:
+
+   * Edit posts
+   * Share posts
+   * Repost posts
+   * Save posts to collections
+
+8. Shared and reposted content should appear in feeds and display the total number of shares and reposts.
+
+9. Improve the comment experience to function like Instagram:
+
+   * Open in a bottom sheet
+   * Expand and collapse by dragging
+   * Remain responsive
+   * Allow videos to continue playing while comments are open
+   * Support replies and nested comments
+
+10. Clicking on a user's profile picture or username anywhere in the app should navigate to that user's profile page.
+
+11. User profiles should closely resemble Instagram profiles and include:
+
+* Posts
+* Realms
+* Shared posts
+* Saved content
+* Communities
+* Profile information
+* Followers and Following counts
+
+12. Fix the Comment and Share buttons within Realms so they function correctly.
+
+13. Expand the Settings section under Profile to include all major Instagram-style settings, including:
+
+* Account settings
+* Privacy controls
+* Security options
+* Notifications
+* Saved content
+* Archived content
+* Help and support
+* Theme settings
+* Language settings
+
+14. Add profile picture upload, cropping, and editing functionality.
+
+15. Ensure profile information persists after logout and login, including:
+
+* Profile photo
+* Bio
+* Display name
+* Username
+* Settings
+* Saved content
+* Followers and following data
+
+16. Store all user profile information securely in the database and automatically restore it when the user signs back in.
+
+17. Ensure all new functionality is production-ready, fully integrated, mobile-responsive, and consistent with the overall GraceSocial design language.
+
+18. When a user updates their:
+
+* Profile picture
+* Display name
+* Username
+
+The changes should automatically reflect across all previously published content, including:
+
+* Posts
+* Comments
+* Realms
+* Community posts
+* Shared content
+* Messages
+
+19. Add authentication options:
+
+* Email and Password login
+* Facebook Login
+* Google Login
+* Password reset via email
+* Email verification
+* Remember Me functionality
+
+20. Add the ability for users to create and upload new Realms directly from the app, including:
+
+* Video upload
+* Caption creation
+* Hashtags
+* Mentions
+* Music support
+* Thumbnail selection
+
+21. Add a built-in Bible section with:
+
+* Multiple Bible translations
+* Chapter and verse navigation
+* Search by scripture reference
+* Search by keyword
+* Highlighting and bookmarking verses
+
+22. Allow users to share Bible verses directly to:
+
+* Home feed
+* Communities
+* Direct messages
+* Prayer groups
+* Realms
+
+23. Implement a Daily Verse feature:
+
+* Display a daily scripture on the homepage
+* Send daily verse push notifications
+* Allow users to share the daily verse
+* Allow users to save the daily verse
+
+24. Add Christian engagement features:
+
+* Prayer requests
+* Prayer counters ("Prayed For")
+* Bible study groups
+* Testimony posts
+* Worship content categories
+* Church communities
+
+25. Add notification support for:
+
+* Likes
+* Comments
+* Shares
+* Reposts
+* Follows
+* Direct messages
+* Community invitations
+* Prayer request interactions
+* Daily verse notifications
+
+26. Ensure all feeds update in real time without requiring page refreshes.
+
+27. Ensure all data is stored in a production database and persists across sessions, devices, and future application updates.
+
+28. Perform a complete audit of the application and identify any broken, incomplete, placeholder, or non-functional features. Fix and fully implement all missing functionality before deployment.
+
+29. Maintain the existing GraceSocial branding and Christian-focused experience while delivering an Instagram-quality user experience throughout the platform.
+
+30. Improve media interaction behavior on the Home Feed:
+
+### Video Posts
+
+* When a user taps on a video in the Home Feed, it should open in the dedicated Realms viewer similar to Instagram Reels.
+* Open in full-screen mode.
+* Users should be able to:
+
+  * Like
+  * Comment
+  * Share
+  * Save
+  * Repost
+  * Follow creator
+  * View creator profile
+  * Scroll to next and previous Realms
+* Video playback should continue seamlessly when opened from the Home Feed.
+
+### Photo Posts
+
+* When a user taps on a photo post in the Home Feed, it should open the post details page with comments visible.
+* Users should be able to:
+
+  * View the image in full size
+  * Read comments
+  * Add comments
+  * Reply to comments
+  * Like comments
+  * Share posts
+  * Save posts
+  * Repost posts
+
+### Multi-Image Carousel Posts
+
+* Tapping a carousel should open a detailed post view.
+* Users should be able to:
+
+  * Swipe through all images
+  * Access comments from the same screen
+  * Zoom in and out of images
+  * Like, share, save, and repost
+
+### User Experience Requirements
+
+* Navigation should closely match Instagram.
+* Opening media should feel instant with smooth animations.
+* Returning to the Home Feed should restore the previous scroll position.
+* Comments should load dynamically without refreshing the page.
+* All interactions should update in real time.
+
+31. Add Instagram-style Stories functionality:
+
+* Create stories using photos and videos
+* View stories from followed users
+* Story highlights on profiles
+* Story reactions and replies
+* Bible verse stories
+* Prayer request stories
+* Automatic story expiration after 24 hours
+
+32. Implement a Followers and Following system:
+
+* Follow users
+* Unfollow users
+* Remove followers
+* Followers list
+* Following list
+* Suggested users
+
+33. Add bookmarks and saved collections:
+
+* Save posts
+* Save Realms
+* Create collections
+* Organize saved content by category
+
+34. Add creator tools and analytics:
+
+* Profile insights
+* Post performance
+* Realm performance
+* Follower growth analytics
+* Engagement analytics
+
+35. Optimize performance:
+
+* Lazy loading
+* Infinite scrolling
+* Image optimization
+* Video caching
+* Fast page transitions
+* Mobile-first responsiveness
+
+36. Ensure the application is production-ready with:
+
+* Secure authentication
+* Database optimization
+* Error handling
+* Logging and monitoring
+* Cloud media storage
+* API rate limiting
+* Backup and recovery support
+
+37. Review the entire application and ensure every button, menu item, icon, tab, navigation link, search feature, upload function, notification, and interaction is fully functional with no placeholders, broken actions, or unfinished implementations.

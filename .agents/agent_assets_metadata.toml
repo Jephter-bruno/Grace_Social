@@ -1,0 +1,26 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "TinLKLz7Wtr-9e-z7zPk2"
+uri = "file://artifacts/grace-social/assets/images/icon.png"
+type = "image"
+title = "grace_social_icon"
+
+[[generated]]
+id = "S6wguuyaivS0wsA3rGdFP"
+uri = "file://artifacts/grace-social/assets/images/placeholder1.png"
+type = "image"
+title = "community_worship"
+
+[[generated]]
+id = "f_SBfFWDuo236O6JFifbj"
+uri = "file://artifacts/grace-social/assets/images/placeholder2.png"
+type = "image"
+title = "sunrise_mountains"
+
+[[generated]]
+id = "VCcvc6P3XOsSiopy77U7S"
+uri = "file://artifacts/grace-social/assets/images/placeholder3.png"
+type = "image"
+title = "bible_morning"
