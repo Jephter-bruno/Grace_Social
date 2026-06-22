@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AdCard } from '@/components/AdCard';
+import { DailyVerseCard } from '@/components/DailyVerseCard';
 import { NewPostModal } from '@/components/NewPostModal';
 import { PostCard } from '@/components/PostCard';
 import { StoryBar } from '@/components/StoryBar';
@@ -80,7 +81,12 @@ export default function HomeScreen() {
   );
 
   const renderHeader = useCallback(
-    () => <StoryBar stories={stories} />,
+    () => (
+      <>
+        <StoryBar stories={stories} />
+        <DailyVerseCard />
+      </>
+    ),
     [stories]
   );
 
