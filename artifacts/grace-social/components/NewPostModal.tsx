@@ -45,7 +45,7 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
   const [submitted, setSubmitted] = useState(false);
   const [pickingMedia, setPickingMedia] = useState(false);
 
-  const webFileRef = useRef<HTMLInputElement | null>(null);
+  const captionRef = useRef<TextInput>(null);
 
   React.useEffect(() => {
     if (visible && initialVerse) {
@@ -55,20 +55,19 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
     }
   }, [visible, initialVerse]);
 
-  const captionRef = useRef<TextInput>(null);
-
   const canShare = caption.trim().length > 0;
 
   const pickImage = async () => {
     Haptics.selectionAsync();
-    if (isWeb) {
-      webFileRef.current?.click();
-      return;
-    }
     setPickingMedia(true);
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') return;
+      if (!isWeb) {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (perm.status !== 'granted') {
+          setPickingMedia(false);
+          return;
+        }
+      }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
@@ -79,6 +78,7 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
         setMediaUri(result.assets[0].uri);
         setMediaType('image');
       }
+    } catch {
     } finally {
       setPickingMedia(false);
     }
@@ -86,14 +86,15 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
 
   const pickVideo = async () => {
     Haptics.selectionAsync();
-    if (isWeb) {
-      webFileRef.current?.click();
-      return;
-    }
     setPickingMedia(true);
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') return;
+      if (!isWeb) {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (perm.status !== 'granted') {
+          setPickingMedia(false);
+          return;
+        }
+      }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['videos'],
         allowsEditing: true,
@@ -104,18 +105,37 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
         setMediaUri(result.assets[0].uri);
         setMediaType('video');
       }
+    } catch {
     } finally {
       setPickingMedia(false);
     }
   };
 
-  const handleWebFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const uri = URL.createObjectURL(file);
-    const type = file.type.startsWith('video/') ? 'video' : 'image';
-    setMediaUri(uri);
-    setMediaType(type);
+  const pickCamera = async () => {
+    Haptics.selectionAsync();
+    setPickingMedia(true);
+    try {
+      if (!isWeb) {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (perm.status !== 'granted') {
+          setPickingMedia(false);
+          return;
+        }
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['images', 'videos'],
+        allowsEditing: true,
+        quality: 0.85,
+      });
+      if (!result.canceled && result.assets[0]) {
+        const asset = result.assets[0];
+        setMediaUri(asset.uri);
+        setMediaType(asset.type === 'video' ? 'video' : 'image');
+      }
+    } catch {
+    } finally {
+      setPickingMedia(false);
+    }
   };
 
   const clearMedia = () => {
@@ -176,6 +196,12 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
     setVerseEnabled((v) => !v);
   };
 
+  const MEDIA_BTNS = [
+    { key: 'image' as const, icon: 'image', label: 'Photo', onPress: pickImage },
+    { key: 'video' as const, icon: 'video', label: 'Video', onPress: pickVideo },
+    ...(!isWeb ? [{ key: 'camera' as const, icon: 'camera', label: 'Camera', onPress: pickCamera }] : []),
+  ];
+
   return (
     <Modal
       visible={visible}
@@ -183,17 +209,6 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
       presentationStyle="pageSheet"
       onRequestClose={handleClose}
     >
-      {/* Hidden web file input */}
-      {isWeb && (
-        <input
-          ref={webFileRef as any}
-          type="file"
-          accept="image/*,video/*"
-          style={{ display: 'none' }}
-          onChange={handleWebFile as any}
-        />
-      )}
-
       <KeyboardAvoidingView
         style={[styles.root, { backgroundColor: colors.background }]}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -202,25 +217,18 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
           <View style={[styles.handleBar, { backgroundColor: colors.border }]} />
         </View>
 
+        {/* Header */}
         <View style={[styles.header, { borderBottomColor: colors.border }]}>
           <TouchableOpacity style={styles.closeBtn} onPress={handleClose}>
             <Feather name="x" size={22} color={colors.mutedForeground} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>New Post</Text>
           <TouchableOpacity
-            style={[
-              styles.shareBtn,
-              { backgroundColor: canShare ? colors.primary : colors.muted },
-            ]}
+            style={[styles.shareBtn, { backgroundColor: canShare ? colors.primary : colors.muted }]}
             onPress={handleShare}
             disabled={!canShare}
           >
-            <Text
-              style={[
-                styles.shareBtnText,
-                { color: canShare ? '#fff' : colors.mutedForeground },
-              ]}
-            >
+            <Text style={[styles.shareBtnText, { color: canShare ? '#fff' : colors.mutedForeground }]}>
               Share
             </Text>
           </TouchableOpacity>
@@ -242,6 +250,7 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
+            {/* Author */}
             <View style={styles.authorRow}>
               <AvatarCircle
                 initials={currentUser?.initials || 'ME'}
@@ -259,6 +268,7 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
               </View>
             </View>
 
+            {/* Caption */}
             <TextInput
               ref={captionRef}
               style={[styles.captionInput, { color: colors.foreground }]}
@@ -274,131 +284,45 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
             />
 
             {/* Media preview */}
-            {mediaUri && (
+            {mediaUri ? (
               <View style={styles.previewWrap}>
                 {mediaType === 'image' ? (
-                  <Image
-                    source={{ uri: mediaUri }}
-                    style={styles.mediaPreview}
-                    contentFit="cover"
-                  />
+                  <Image source={{ uri: mediaUri }} style={styles.mediaPreview} contentFit="cover" />
                 ) : (
-                  <VideoPlayer
-                    uri={mediaUri}
-                    isActive
-                    muted
-                    style={styles.mediaPreview}
-                  />
+                  <VideoPlayer uri={mediaUri} isActive muted style={styles.mediaPreview} />
                 )}
-                <TouchableOpacity style={styles.removeMediaBtn} onPress={clearMedia}>
+                <TouchableOpacity style={styles.removeBtn} onPress={clearMedia}>
                   <Feather name="x" size={16} color="#fff" />
                 </TouchableOpacity>
-                <View style={styles.mediaTypeBadge}>
-                  <Feather name={mediaType === 'video' ? 'video' : 'image'} size={12} color="#fff" />
-                  <Text style={styles.mediaTypeBadgeText}>
-                    {mediaType === 'video' ? 'Video' : 'Photo'}
-                  </Text>
+                <View style={styles.mediaBadge}>
+                  <Feather name={mediaType === 'video' ? 'video' : 'image'} size={11} color="#fff" />
+                  <Text style={styles.mediaBadgeText}>{mediaType === 'video' ? 'Video' : 'Photo'}</Text>
                 </View>
+              </View>
+            ) : (
+              /* Media picker buttons — only shown when no media selected */
+              <View style={styles.mediaPicker}>
+                {MEDIA_BTNS.map((btn) => (
+                  <TouchableOpacity
+                    key={btn.key}
+                    style={[styles.mediaBtn, { backgroundColor: colors.muted, borderColor: colors.border }]}
+                    onPress={btn.onPress}
+                    disabled={pickingMedia}
+                  >
+                    {pickingMedia ? (
+                      <ActivityIndicator size="small" color={colors.primary} />
+                    ) : (
+                      <Feather name={btn.icon as any} size={22} color={colors.primary} />
+                    )}
+                    <Text style={[styles.mediaBtnLabel, { color: colors.foreground }]}>{btn.label}</Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             )}
 
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
-            {/* Media picker buttons */}
-            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>ADD MEDIA</Text>
-            <View style={styles.mediaBtns}>
-              <TouchableOpacity
-                style={[
-                  styles.mediaBtn,
-                  {
-                    backgroundColor: mediaType === 'image' ? colors.primary + '15' : colors.muted,
-                    borderColor: mediaType === 'image' ? colors.primary : colors.border,
-                  },
-                ]}
-                onPress={pickImage}
-                disabled={pickingMedia}
-              >
-                {pickingMedia && mediaType !== 'video' ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <Feather
-                    name="image"
-                    size={20}
-                    color={mediaType === 'image' ? colors.primary : colors.mutedForeground}
-                  />
-                )}
-                <Text
-                  style={[
-                    styles.mediaBtnText,
-                    { color: mediaType === 'image' ? colors.primary : colors.mutedForeground },
-                  ]}
-                >
-                  Photo
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[
-                  styles.mediaBtn,
-                  {
-                    backgroundColor: mediaType === 'video' ? colors.primary + '15' : colors.muted,
-                    borderColor: mediaType === 'video' ? colors.primary : colors.border,
-                  },
-                ]}
-                onPress={pickVideo}
-                disabled={pickingMedia}
-              >
-                {pickingMedia && mediaType === 'video' ? (
-                  <ActivityIndicator size="small" color={colors.primary} />
-                ) : (
-                  <Feather
-                    name="video"
-                    size={20}
-                    color={mediaType === 'video' ? colors.primary : colors.mutedForeground}
-                  />
-                )}
-                <Text
-                  style={[
-                    styles.mediaBtnText,
-                    { color: mediaType === 'video' ? colors.primary : colors.mutedForeground },
-                  ]}
-                >
-                  Video
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.mediaBtn, { backgroundColor: colors.muted, borderColor: colors.border }]}
-                onPress={async () => {
-                  Haptics.selectionAsync();
-                  if (isWeb) { webFileRef.current?.click(); return; }
-                  setPickingMedia(true);
-                  try {
-                    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-                    if (status !== 'granted') return;
-                    const result = await ImagePicker.launchCameraAsync({
-                      mediaTypes: ['images', 'videos'],
-                      allowsEditing: true,
-                      quality: 0.85,
-                    });
-                    if (!result.canceled && result.assets[0]) {
-                      const asset = result.assets[0];
-                      setMediaUri(asset.uri);
-                      setMediaType(asset.type === 'video' ? 'video' : 'image');
-                    }
-                  } finally {
-                    setPickingMedia(false);
-                  }
-                }}
-                disabled={pickingMedia}
-              >
-                <Feather name="camera" size={20} color={colors.mutedForeground} />
-                <Text style={[styles.mediaBtnText, { color: colors.mutedForeground }]}>Camera</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={[styles.divider, { backgroundColor: colors.border }]} />
-
+            {/* Bible verse toggle */}
             <TouchableOpacity
               style={[
                 styles.verseToggle,
@@ -409,17 +333,8 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
               ]}
               onPress={toggleVerse}
             >
-              <Feather
-                name="book-open"
-                size={16}
-                color={verseEnabled ? colors.accent : colors.mutedForeground}
-              />
-              <Text
-                style={[
-                  styles.verseToggleText,
-                  { color: verseEnabled ? colors.accent : colors.mutedForeground },
-                ]}
-              >
+              <Feather name="book-open" size={16} color={verseEnabled ? colors.accent : colors.mutedForeground} />
+              <Text style={[styles.verseToggleText, { color: verseEnabled ? colors.accent : colors.mutedForeground }]}>
                 {verseEnabled ? 'Bible verse added' : 'Add a Bible verse'}
               </Text>
               <Feather
@@ -432,13 +347,7 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
             {verseEnabled && (
               <View style={[styles.verseSection, { borderColor: colors.border }]}>
                 <TextInput
-                  style={[
-                    styles.verseRefInput,
-                    {
-                      color: colors.foreground,
-                      borderBottomColor: colors.border,
-                    },
-                  ]}
+                  style={[styles.verseRefInput, { color: colors.foreground, borderBottomColor: colors.border }]}
                   placeholder="Reference (e.g. John 3:16)"
                   placeholderTextColor={colors.mutedForeground}
                   value={verseRef}
@@ -479,27 +388,10 @@ const styles = StyleSheet.create({
   headerTitle: { flex: 1, fontSize: 17, fontFamily: 'Inter_600SemiBold' },
   shareBtn: { paddingHorizontal: 20, paddingVertical: 8, borderRadius: 20 },
   shareBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  successView: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 14,
-    paddingHorizontal: 40,
-  },
-  successCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  successView: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 40 },
+  successCircle: { width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center' },
   successTitle: { fontSize: 22, fontFamily: 'Inter_700Bold' },
-  successSub: {
-    fontSize: 15,
-    fontFamily: 'Inter_400Regular',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
+  successSub: { fontSize: 15, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 22 },
   body: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
   authorRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
   authorInfo: { gap: 2 },
@@ -521,7 +413,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   mediaPreview: { width: '100%', height: '100%' },
-  removeMediaBtn: {
+  removeBtn: {
     position: 'absolute',
     top: 10,
     right: 10,
@@ -533,7 +425,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 10,
   },
-  mediaTypeBadge: {
+  mediaBadge: {
     position: 'absolute',
     bottom: 10,
     left: 10,
@@ -545,25 +437,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
   },
-  mediaTypeBadgeText: { color: '#fff', fontSize: 11, fontFamily: 'Inter_600SemiBold' },
-  divider: { height: 0.5, marginBottom: 16 },
-  sectionLabel: {
-    fontSize: 11,
-    fontFamily: 'Inter_600SemiBold',
-    letterSpacing: 1,
-    marginBottom: 12,
+  mediaBadgeText: { color: '#fff', fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  mediaPicker: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
   },
-  mediaBtns: { flexDirection: 'row', gap: 10, marginBottom: 16 },
   mediaBtn: {
     flex: 1,
-    height: 72,
-    borderRadius: 12,
+    height: 80,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 8,
     borderWidth: 1.5,
   },
-  mediaBtnText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  mediaBtnLabel: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  divider: { height: 0.5, marginBottom: 16 },
   verseToggle: {
     flexDirection: 'row',
     alignItems: 'center',
