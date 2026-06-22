@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { REEL_VIDEOS, POST_VIDEOS } from '@/constants/videos';
 
 export type PrayerCategory = 'health' | 'family' | 'work' | 'faith' | 'gratitude';
