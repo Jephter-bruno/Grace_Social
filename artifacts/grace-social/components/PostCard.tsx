@@ -15,6 +15,7 @@ import Animated, {
 
 import { AvatarCircle } from '@/components/AvatarCircle';
 import { CommentsModal } from '@/components/CommentsModal';
+import { PostDetailModal } from '@/components/PostDetailModal';
 import { VideoPlayer } from '@/components/VideoPlayer';
 import { POST_IMAGES } from '@/constants/images';
 import { Post, useApp } from '@/context/AppContext';
@@ -28,7 +29,10 @@ interface PostCardProps {
 export function PostCard({ post, isActive = false }: PostCardProps) {
   const colors = useColors();
   const { toggleLike, toggleSave } = useApp();
-  const [commentsVisible, setCommentsVisible] = useState(false);
+  const [detailVisible, setDetailVisible] = useState(false);
+
+  const isVideo = Boolean(post.videoUri);
+  const hasImage = !isVideo && post.imageIndex !== null && post.imageIndex !== undefined;
 
   const heartScale = useSharedValue(0);
   const heartOpacity = useSharedValue(0);
@@ -42,25 +46,38 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
 
   const triggerLike = useCallback(() => {
     if (!post.isLiked) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       toggleLike(post.id);
     }
-    heartScale.value = withSequence(withSpring(1.25, { damping: 6, stiffness: 200 }), withSpring(1.0, { damping: 10 }));
-    heartOpacity.value = withSequence(withTiming(1, { duration: 60 }), withTiming(1, { duration: 600 }), withTiming(0, { duration: 350 }));
+    heartScale.value = withSequence(
+      withSpring(1.25, { damping: 6, stiffness: 200 }),
+      withSpring(1.0, { damping: 10 })
+    );
+    heartOpacity.value = withSequence(
+      withTiming(1, { duration: 60 }),
+      withTiming(1, { duration: 600 }),
+      withTiming(0, { duration: 350 })
+    );
   }, [post.isLiked, post.id, toggleLike]);
 
-  const doubleTap = Gesture.Tap().numberOfTaps(2).maxDelay(250).onEnd(() => { runOnJS(triggerLike)(); });
+  // Double-tap gesture for video (like animation)
+  const videoDoubleTap = Gesture.Tap()
+    .numberOfTaps(2)
+    .maxDelay(250)
+    .onEnd(() => { runOnJS(triggerLike)(); });
 
   const handleLike = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    likeScale.value = withSequence(withTiming(1.35, { duration: 80 }), withTiming(1, { duration: 100 }));
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    likeScale.value = withSequence(
+      withTiming(1.35, { duration: 80 }),
+      withTiming(1, { duration: 100 })
+    );
     toggleLike(post.id);
   };
 
-  const isVideo = Boolean(post.videoUri);
-
   return (
     <View style={[styles.card, { borderBottomColor: colors.border }]}>
+      {/* Header */}
       <View style={styles.header}>
         <AvatarCircle initials={post.userInitials} color={post.userColor} size={38} />
         <View style={styles.headerInfo}>
@@ -77,26 +94,38 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
         </TouchableOpacity>
       </View>
 
-      {/* Media area */}
-      {(isVideo || post.imageIndex !== null) && (
-        <GestureDetector gesture={doubleTap}>
+      {/* Image post — single tap opens detail, no gesture composition needed */}
+      {hasImage && (
+        <TouchableOpacity
+          activeOpacity={0.97}
+          onPress={() => setDetailVisible(true)}
+          style={styles.mediaWrap}
+        >
+          <Image
+            source={POST_IMAGES[post.imageIndex!]}
+            style={styles.media}
+            contentFit="cover"
+          />
+          <View style={styles.expandBadge}>
+            <Feather name="maximize-2" size={11} color="#fff" />
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* Video post — double-tap to like via GestureDetector */}
+      {isVideo && (
+        <GestureDetector gesture={videoDoubleTap}>
           <View style={styles.mediaWrap}>
-            {isVideo ? (
-              <>
-                <VideoPlayer
-                  uri={post.videoUri!}
-                  isActive={isActive}
-                  muted
-                  style={styles.media}
-                />
-                <View style={styles.videoTag} pointerEvents="none">
-                  <Feather name="video" size={11} color="#fff" />
-                  <Text style={styles.videoTagText}>Video</Text>
-                </View>
-              </>
-            ) : (
-              <Image source={POST_IMAGES[post.imageIndex!]} style={styles.media} contentFit="cover" />
-            )}
+            <VideoPlayer
+              uri={post.videoUri!}
+              isActive={isActive}
+              muted
+              style={styles.media}
+            />
+            <View style={styles.videoTag}>
+              <Feather name="video" size={11} color="#fff" />
+              <Text style={styles.videoTagText}>Video</Text>
+            </View>
             <Animated.View style={[styles.heartOverlay, heartStyle]} pointerEvents="none">
               <Feather name="heart" size={88} color="#fff" />
             </Animated.View>
@@ -106,11 +135,14 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
 
       {post.bibleVerse && (
         <View style={[styles.verseCard, { backgroundColor: colors.muted, borderLeftColor: colors.accent }]}>
-          <Text style={[styles.verseText, { color: colors.foreground }]} numberOfLines={3}>"{post.bibleVerse.text}"</Text>
+          <Text style={[styles.verseText, { color: colors.foreground }]} numberOfLines={3}>
+            "{post.bibleVerse.text}"
+          </Text>
           <Text style={[styles.verseRef, { color: colors.accent }]}>— {post.bibleVerse.reference}</Text>
         </View>
       )}
 
+      {/* Actions */}
       <View style={styles.actions}>
         <View style={styles.leftActions}>
           <Animated.View style={likeAnimStyle}>
@@ -118,17 +150,26 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
               <Feather name="heart" size={24} color={post.isLiked ? '#E53935' : colors.foreground} />
             </TouchableOpacity>
           </Animated.View>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => setCommentsVisible(true)}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => setDetailVisible(true)}>
             <Feather name="message-circle" size={24} color={colors.foreground} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionBtn} onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            Share.share({ message: `"${post.caption}" — shared from Grace Social` });
-          }}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              Share.share({ message: `"${post.caption}" — shared from Grace Social` });
+            }}
+          >
             <Feather name="send" size={22} color={colors.foreground} />
           </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleSave(post.id); }} style={styles.saveBtn}>
+        <TouchableOpacity
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            toggleSave(post.id);
+          }}
+          style={styles.saveBtn}
+        >
           <Feather name="bookmark" size={24} color={post.isSaved ? colors.primary : colors.foreground} />
         </TouchableOpacity>
       </View>
@@ -145,17 +186,28 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
       </View>
 
       {post.comments > 0 && (
-        <TouchableOpacity style={styles.commentsBtn} onPress={() => setCommentsVisible(true)}>
-          <Text style={[styles.commentsText, { color: colors.mutedForeground }]}>View all {post.comments} comments</Text>
+        <TouchableOpacity style={styles.commentsBtn} onPress={() => setDetailVisible(true)}>
+          <Text style={[styles.commentsText, { color: colors.mutedForeground }]}>
+            View all {post.comments} comments
+          </Text>
         </TouchableOpacity>
       )}
 
-      <CommentsModal
-        visible={commentsVisible}
-        entityId={post.id}
-        entityType="post"
-        onClose={() => setCommentsVisible(false)}
-      />
+      {/* Image posts → rich PostDetailModal with sticky thumbnail */}
+      {hasImage ? (
+        <PostDetailModal
+          visible={detailVisible}
+          post={post}
+          onClose={() => setDetailVisible(false)}
+        />
+      ) : (
+        <CommentsModal
+          visible={detailVisible}
+          entityId={post.id}
+          entityType="post"
+          onClose={() => setDetailVisible(false)}
+        />
+      )}
     </View>
   );
 }
@@ -169,11 +221,12 @@ const styles = StyleSheet.create({
   userHandle: { fontSize: 12, fontFamily: 'Inter_400Regular' },
   timestamp: { fontSize: 12, fontFamily: 'Inter_400Regular' },
   moreBtn: { padding: 4 },
-  mediaWrap: { width: '100%', aspectRatio: 4 / 3, position: 'relative' },
+  mediaWrap: { width: '100%', aspectRatio: 4 / 3, position: 'relative', overflow: 'hidden' },
   media: { width: '100%', height: '100%' },
   heartOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
   videoTag: { position: 'absolute', top: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 },
   videoTagText: { color: '#fff', fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  expandBadge: { position: 'absolute', bottom: 10, right: 10, width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   verseCard: { marginHorizontal: 12, marginTop: 10, padding: 12, borderRadius: 8, borderLeftWidth: 3 },
   verseText: { fontSize: 13, fontFamily: 'Inter_400Regular', fontStyle: 'italic', lineHeight: 19 },
   verseRef: { fontSize: 12, fontFamily: 'Inter_600SemiBold', marginTop: 5 },
