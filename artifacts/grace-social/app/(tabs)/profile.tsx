@@ -7,6 +7,7 @@ import React, { useMemo, useState } from 'react';
 import {
   Alert,
   Dimensions,
+  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
@@ -40,6 +41,7 @@ type SettingsSection =
   | 'notifications'
   | 'language'
   | 'help'
+  | 'livechat'
   | 'about';
 
 function TwitterPost({ post, colors }: { post: any; colors: any }) {
@@ -217,6 +219,11 @@ export default function ProfileScreen() {
   const [showNewPw, setShowNewPw] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState('English');
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null);
+  const [chatMessages, setChatMessages] = useState<{ id: number; text: string; fromUser: boolean; time: string }[]>([
+    { id: 0, text: 'Hi there! 👋 Welcome to Grace Social support. How can we help you today?', fromUser: false, time: 'just now' },
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatTyping, setChatTyping] = useState(false);
 
   const handleToggleDark = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -498,9 +505,137 @@ export default function ProfileScreen() {
             ))}
             <Text style={[styles.groupLabel, { color: colors.mutedForeground }]}>CONTACT</Text>
             <SettingsRow icon="mail" label="Email Support" value="support@gracesocial.app" colors={colors} onPress={() => Alert.alert('Email Support', 'Copy address: support@gracesocial.app')} />
-            <SettingsRow icon="message-square" label="Live Chat" value="Mon–Fri, 9am–5pm EST" colors={colors} onPress={() => Alert.alert('Live Chat', 'Our support team will be with you shortly.')} />
+            <SettingsRow icon="message-square" label="Live Chat" value="Mon–Fri, 9am–5pm EST" colors={colors} onPress={() => goSection('livechat')} />
             <SettingsRow icon="book" label="Community Guidelines" colors={colors} onPress={() => Alert.alert('Community Guidelines', 'Grace Social is a place of love, respect, and faith. Be kind, be encouraging, and honour God in all you share.')} />
           </ScrollView>
+        </View>
+      );
+    }
+
+    if (settingsSection === 'livechat') {
+      const AUTO_REPLIES: Record<string, string> = {
+        default: "Thanks for reaching out! A member of our support team will review your message shortly. In the meantime, you can check our FAQs in Help & Support.",
+        prayer: "We'd love to pray with you! You can join a prayer group in the Prayer tab, or post a prayer request on your feed.",
+        account: "For account issues, please go to Settings → Account where you can update your profile, email, and password.",
+        verse: "You can share Bible verses in any post or Realm! Tap 'Add a Bible verse' when composing, then browse our verse library.",
+        follow: "To follow someone, visit the Search tab → People, search for their name or handle, and tap Follow.",
+        delete: "To delete a post, tap the '···' menu on the post and choose Delete. This action cannot be undone.",
+        privacy: "Your privacy settings are in Settings → Privacy. You can set your account to Private or control who can message you.",
+      };
+
+      const handleSendChat = () => {
+        if (!chatInput.trim()) return;
+        const userMsg = {
+          id: chatMessages.length,
+          text: chatInput.trim(),
+          fromUser: true,
+          time: 'just now',
+        };
+        setChatMessages((prev) => [...prev, userMsg]);
+        const q = chatInput.toLowerCase();
+        setChatInput('');
+        setChatTyping(true);
+
+        setTimeout(() => {
+          const replyKey = Object.keys(AUTO_REPLIES).find(
+            (k) => k !== 'default' && q.includes(k)
+          ) ?? 'default';
+          const botMsg = {
+            id: chatMessages.length + 1,
+            text: AUTO_REPLIES[replyKey],
+            fromUser: false,
+            time: 'just now',
+          };
+          setChatMessages((prev) => [...prev, botMsg]);
+          setChatTyping(false);
+        }, 1400);
+      };
+
+      return (
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+          <View style={[styles.settingsHeader, { paddingTop: headerPad, borderBottomColor: colors.border }]}>
+            <SectionHeader title="Live Chat" onBack={() => goSection('help')} colors={colors} />
+          </View>
+
+          {/* Support agent status bar */}
+          <View style={[styles.chatStatusBar, { backgroundColor: colors.primary + '12', borderBottomColor: colors.border }]}>
+            <View style={styles.chatAgentDot} />
+            <Text style={[styles.chatStatusText, { color: colors.primary }]}>
+              Support is online · Mon–Fri, 9am–5pm EST
+            </Text>
+          </View>
+
+          {/* Messages */}
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 20 }}
+            showsVerticalScrollIndicator={false}
+          >
+            {chatMessages.map((msg) => (
+              <View
+                key={msg.id}
+                style={[
+                  styles.chatBubbleWrap,
+                  msg.fromUser ? styles.chatBubbleWrapUser : styles.chatBubbleWrapBot,
+                ]}
+              >
+                {!msg.fromUser && (
+                  <View style={[styles.chatAvatar, { backgroundColor: colors.primary }]}>
+                    <Feather name="headphones" size={14} color="#fff" />
+                  </View>
+                )}
+                <View
+                  style={[
+                    styles.chatBubble,
+                    {
+                      backgroundColor: msg.fromUser ? colors.primary : colors.card,
+                      borderColor: msg.fromUser ? colors.primary : colors.border,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.chatBubbleText, { color: msg.fromUser ? '#fff' : colors.foreground }]}>
+                    {msg.text}
+                  </Text>
+                </View>
+              </View>
+            ))}
+
+            {chatTyping && (
+              <View style={[styles.chatBubbleWrap, styles.chatBubbleWrapBot]}>
+                <View style={[styles.chatAvatar, { backgroundColor: colors.primary }]}>
+                  <Feather name="headphones" size={14} color="#fff" />
+                </View>
+                <View style={[styles.chatBubble, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Text style={[styles.chatBubbleText, { color: colors.mutedForeground, fontStyle: 'italic' }]}>
+                    Support is typing…
+                  </Text>
+                </View>
+              </View>
+            )}
+          </ScrollView>
+
+          {/* Input */}
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={[styles.chatInputRow, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
+              <TextInput
+                style={[styles.chatInput, { backgroundColor: colors.muted, color: colors.foreground }]}
+                placeholder="Type your message…"
+                placeholderTextColor={colors.mutedForeground}
+                value={chatInput}
+                onChangeText={setChatInput}
+                onSubmitEditing={handleSendChat}
+                returnKeyType="send"
+                multiline
+              />
+              <TouchableOpacity
+                style={[styles.chatSendBtn, { backgroundColor: chatInput.trim() ? colors.primary : colors.muted }]}
+                onPress={handleSendChat}
+                disabled={!chatInput.trim()}
+              >
+                <Feather name="send" size={18} color={chatInput.trim() ? '#fff' : colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+          </KeyboardAvoidingView>
         </View>
       );
     }
@@ -841,6 +976,18 @@ const styles = StyleSheet.create({
   faqHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   faqQ: { flex: 1, fontSize: 14, fontFamily: 'Inter_600SemiBold', lineHeight: 20 },
   faqA: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 20, marginTop: 8 },
+  chatStatusBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: 0.5 },
+  chatAgentDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#27AE60' },
+  chatStatusText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  chatBubbleWrap: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  chatBubbleWrapUser: { justifyContent: 'flex-end' },
+  chatBubbleWrapBot: { justifyContent: 'flex-start' },
+  chatAvatar: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  chatBubble: { maxWidth: '78%', borderRadius: 18, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 10 },
+  chatBubbleText: { fontSize: 14, fontFamily: 'Inter_400Regular', lineHeight: 21 },
+  chatInputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, padding: 12, borderTopWidth: 0.5 },
+  chatInput: { flex: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, fontFamily: 'Inter_400Regular', maxHeight: 100 },
+  chatSendBtn: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   aboutHero: { alignItems: 'center', paddingVertical: 32, gap: 10, marginBottom: 8 },
   aboutIconWrap: { width: 72, height: 72, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   aboutAppName: { fontSize: 22, fontFamily: 'Inter_700Bold' },

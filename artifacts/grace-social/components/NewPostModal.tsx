@@ -18,6 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AvatarCircle } from '@/components/AvatarCircle';
+import { VersePickerModal } from '@/components/VersePickerModal';
 import { VideoPlayer } from '@/components/VideoPlayer';
 import { useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
@@ -44,6 +45,7 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
   const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [pickingMedia, setPickingMedia] = useState(false);
+  const [versePickerVisible, setVersePickerVisible] = useState(false);
 
   const captionRef = useRef<TextInput>(null);
 
@@ -346,23 +348,55 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
 
             {verseEnabled && (
               <View style={[styles.verseSection, { borderColor: colors.border }]}>
-                <TextInput
-                  style={[styles.verseRefInput, { color: colors.foreground, borderBottomColor: colors.border }]}
-                  placeholder="Reference (e.g. John 3:16)"
-                  placeholderTextColor={colors.mutedForeground}
-                  value={verseRef}
-                  onChangeText={setVerseRef}
-                />
-                <TextInput
-                  style={[styles.verseBodyInput, { color: colors.foreground }]}
-                  placeholder="Verse text..."
-                  placeholderTextColor={colors.mutedForeground}
-                  value={verseText}
-                  onChangeText={setVerseText}
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                />
+                {/* Browse button */}
+                <TouchableOpacity
+                  style={[styles.browseBtnRow, { borderBottomColor: colors.border }]}
+                  onPress={() => { Haptics.selectionAsync(); setVersePickerVisible(true); }}
+                >
+                  <Feather name="search" size={15} color={colors.primary} />
+                  <Text style={[styles.browseBtnText, { color: colors.primary }]}>Browse verse library</Text>
+                  <Feather name="chevron-right" size={15} color={colors.primary} />
+                </TouchableOpacity>
+
+                {/* Selected verse preview or manual entry */}
+                {verseRef ? (
+                  <View style={styles.versePreviewWrap}>
+                    <View style={styles.versePreviewTop}>
+                      <Text style={[styles.versePreviewRef, { color: colors.primary }]}>{verseRef}</Text>
+                      <TouchableOpacity onPress={() => { setVerseRef(''); setVerseText(''); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Feather name="x" size={15} color={colors.mutedForeground} />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={[styles.versePreviewText, { color: colors.foreground }]}>{verseText}</Text>
+                    <TouchableOpacity
+                      style={[styles.changeVerseBtn, { borderColor: colors.border }]}
+                      onPress={() => { Haptics.selectionAsync(); setVersePickerVisible(true); }}
+                    >
+                      <Feather name="refresh-cw" size={13} color={colors.mutedForeground} />
+                      <Text style={[styles.changeVerseBtnText, { color: colors.mutedForeground }]}>Change verse</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <>
+                    <TextInput
+                      style={[styles.verseRefInput, { color: colors.foreground, borderBottomColor: colors.border }]}
+                      placeholder="Reference (e.g. John 3:16)"
+                      placeholderTextColor={colors.mutedForeground}
+                      value={verseRef}
+                      onChangeText={setVerseRef}
+                    />
+                    <TextInput
+                      style={[styles.verseBodyInput, { color: colors.foreground }]}
+                      placeholder="Type verse text, or browse above..."
+                      placeholderTextColor={colors.mutedForeground}
+                      value={verseText}
+                      onChangeText={setVerseText}
+                      multiline
+                      numberOfLines={3}
+                      textAlignVertical="top"
+                    />
+                  </>
+                )}
               </View>
             )}
 
@@ -370,6 +404,17 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
           </ScrollView>
         )}
       </KeyboardAvoidingView>
+
+      <VersePickerModal
+        visible={versePickerVisible}
+        onClose={() => setVersePickerVisible(false)}
+        onSelect={(verse) => {
+          setVerseRef(verse.reference);
+          setVerseText(verse.text);
+          setVerseEnabled(true);
+          setVersePickerVisible(false);
+        }}
+      />
     </Modal>
   );
 }
@@ -466,6 +511,21 @@ const styles = StyleSheet.create({
   },
   verseToggleText: { flex: 1, fontSize: 14, fontFamily: 'Inter_500Medium' },
   verseSection: { borderWidth: 1, borderRadius: 12, overflow: 'hidden', marginBottom: 12 },
+  browseBtnRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    borderBottomWidth: 0.5,
+  },
+  browseBtnText: { flex: 1, fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  versePreviewWrap: { padding: 12, gap: 6 },
+  versePreviewTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  versePreviewRef: { fontSize: 14, fontFamily: 'Inter_700Bold' },
+  versePreviewText: { fontSize: 14, fontFamily: 'Inter_400Regular', fontStyle: 'italic', lineHeight: 20 },
+  changeVerseBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, alignSelf: 'flex-start', marginTop: 4 },
+  changeVerseBtnText: { fontSize: 12, fontFamily: 'Inter_400Regular' },
   verseRefInput: {
     fontSize: 14,
     fontFamily: 'Inter_600SemiBold',
