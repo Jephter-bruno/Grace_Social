@@ -144,7 +144,7 @@ export default function CommunityDetailScreen() {
 
             <TouchableOpacity
               style={[styles.chatBtn, { borderColor: community.color, backgroundColor: community.color + '15' }]}
-              onPress={() => router.push({ pathname: '/community-chat', params: { id: community.id } })}
+              onPress={() => router.push({ pathname: '/community-chat' as any, params: { id: community.id } })}
             >
               <Feather name="message-circle" size={16} color={community.color} />
               <Text style={[styles.chatBtnText, { color: community.color }]}>Group Chat</Text>

@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -182,22 +181,20 @@ export default function CommunityChatScreen() {
     setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
   }, []);
 
-  useEffect(() => {
-    const first = setTimeout(() => {
-      injectSimulated();
-    }, 14000);
-    const interval = setInterval(injectSimulated, 28000);
-    return () => { clearTimeout(first); clearInterval(interval); };
-  }, []);
-
-  const injectSimulated = () => {
+  const injectSimulated = useCallback(() => {
     const base = SIMULATED_INCOMING[simIdx.current % SIMULATED_INCOMING.length];
     simIdx.current++;
     const msg: ChatMessage = { ...base, id: `sim_${Date.now()}`, createdAt: Date.now() };
     setMessages((prev) => [...prev, msg]);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     scrollToBottom();
-  };
+  }, [scrollToBottom]);
+
+  useEffect(() => {
+    const first = setTimeout(injectSimulated, 14000);
+    const interval = setInterval(injectSimulated, 28000);
+    return () => { clearTimeout(first); clearInterval(interval); };
+  }, [injectSimulated]);
 
   const sendText = () => {
     if (!inputText.trim()) return;
@@ -450,7 +447,7 @@ export default function CommunityChatScreen() {
           renderItem={renderMessage}
           contentContainerStyle={{ padding: 12, gap: 6, paddingBottom: 12 }}
           showsVerticalScrollIndicator={false}
-          onContentSizeChange={scrollToBottom}
+          onContentSizeChange={() => scrollToBottom()}
         />
 
         {attachMode === 'prayer' && (

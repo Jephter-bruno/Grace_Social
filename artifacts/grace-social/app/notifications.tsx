@@ -153,27 +153,30 @@ export default function NotificationsScreen() {
   }, [notifications, activeFilter]);
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
-  const filteredUnread = filtered.filter((n) => !n.isRead);
-  const todayFiltered = filtered.filter((n) => n.isRead && !n.timestamp.includes('d ago'));
-  const earlierFiltered = filtered.filter((n) => n.isRead && n.timestamp.includes('d ago'));
 
   type FlatItem =
     | { kind: 'header'; title: string; count: number }
     | { kind: 'item'; item: Notification };
 
-  const flatData: FlatItem[] = [];
-  if (filteredUnread.length) {
-    flatData.push({ kind: 'header', title: 'New', count: filteredUnread.length });
-    filteredUnread.forEach((item) => flatData.push({ kind: 'item', item }));
-  }
-  if (todayFiltered.length) {
-    flatData.push({ kind: 'header', title: 'Today', count: todayFiltered.length });
-    todayFiltered.forEach((item) => flatData.push({ kind: 'item', item }));
-  }
-  if (earlierFiltered.length) {
-    flatData.push({ kind: 'header', title: 'Earlier', count: earlierFiltered.length });
-    earlierFiltered.forEach((item) => flatData.push({ kind: 'item', item }));
-  }
+  const flatData = useMemo<FlatItem[]>(() => {
+    const filteredUnread = filtered.filter((n) => !n.isRead);
+    const todayFiltered = filtered.filter((n) => n.isRead && !n.timestamp.includes('d ago'));
+    const earlierFiltered = filtered.filter((n) => n.isRead && n.timestamp.includes('d ago'));
+    const result: FlatItem[] = [];
+    if (filteredUnread.length) {
+      result.push({ kind: 'header', title: 'New', count: filteredUnread.length });
+      filteredUnread.forEach((item) => result.push({ kind: 'item', item }));
+    }
+    if (todayFiltered.length) {
+      result.push({ kind: 'header', title: 'Today', count: todayFiltered.length });
+      todayFiltered.forEach((item) => result.push({ kind: 'item', item }));
+    }
+    if (earlierFiltered.length) {
+      result.push({ kind: 'header', title: 'Earlier', count: earlierFiltered.length });
+      earlierFiltered.forEach((item) => result.push({ kind: 'item', item }));
+    }
+    return result;
+  }, [filtered]);
 
   const handlePress = useCallback(
     (notification: Notification) => {
