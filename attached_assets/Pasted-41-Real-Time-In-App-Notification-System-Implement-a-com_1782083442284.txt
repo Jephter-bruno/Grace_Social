@@ -1,0 +1,497 @@
+41. Real-Time In-App Notification System
+
+
+
+Implement a complete Instagram/Facebook-style notification system.
+
+
+
+Requirements:
+
+
+
+* Real-time notifications without page refresh.
+
+* Push-style in-app notifications.
+
+* Notification badge counter on the notification icon.
+
+* Unread notification count.
+
+* Notification center/feed.
+
+
+
+Generate notifications for:
+
+
+
+* Likes on posts
+
+* Likes on comments
+
+* New followers
+
+* Mentions
+
+* Shares
+
+* Reposts
+
+* Direct messages
+
+* Community invitations
+
+* Community announcements
+
+* Prayer request responses
+
+* Someone praying for your prayer request
+
+* Bible verse shares
+
+* Story replies
+
+* Realm interactions
+
+
+
+Examples:
+
+
+
+* "John Doe prayed for your request."
+
+* "Mary responded to your prayer request."
+
+* "Peter liked your post."
+
+* "Sarah shared your Realm."
+
+
+
+Users should be able to:
+
+
+
+* Mark notifications as read
+
+* Mark all as read
+
+* Delete notifications
+
+* Filter notifications by type
+
+
+
+42. Video Posting Rules
+
+
+
+Realms should become the only location where videos can be created and published.
+
+
+
+Requirements:
+
+
+
+* Users should only be able to upload videos through the Realms creation flow.
+
+
+
+* Home Feed posts should support:
+
+
+
+  * Text posts
+
+  * Image posts
+
+  * Bible verse posts
+
+  * Prayer requests
+
+
+
+* Video uploads should automatically be treated as Realms.
+
+
+
+
+
+
+
+43. Community Posting & Community Chat Groups
+
+
+
+Enhance communities with multiple content types.
+
+
+
+Users should be able to create:
+
+
+
+* Feed posts
+
+* Prayer requests
+
+* Announcements
+
+* Bible study discussions
+
+* Events
+
+
+
+Add Community Chat Groups:
+
+
+
+* Real-time group chat
+
+* Community moderators
+
+* Message reactions
+
+* Bible verse sharing
+
+* Prayer request sharing
+
+* Image sharing
+
+* Voice notes
+
+* Group notifications
+
+
+
+44. Bible Verse Integration in Stories
+
+
+
+At the bottom of every Story viewer:
+
+
+
+* Display a curated Bible verse automatically.
+
+* Pull verses dynamically from the built-in Bible module.
+
+* Refresh verses daily.
+
+
+
+Allow users to:
+
+
+
+* Share the verse
+
+* Save the verse
+
+* Open the full chapter
+
+* Post the verse to their feed
+
+* Send the verse via direct message
+
+
+
+45. Enhanced Image Post Experience
+
+
+
+When a user clicks an image post:
+
+
+
+* Open the post detail view.
+
+* Display the image prominently at the top.
+
+* Show comments below.
+
+
+
+Add an image preview placeholder inside the comments experience.
+
+
+
+Requirements:
+
+
+
+* The image thumbnail should remain visible while viewing comments.
+
+* Users should always know which image is being discussed.
+
+* Clicking the image thumbnail should expand it to full-screen view.
+
+* The same image preview should appear anywhere the comments screen is opened from.
+
+
+
+46. Home Feed Video Navigation
+
+
+
+When a user clicks any video from:
+
+
+
+* Home Feed
+
+* Search Results
+
+* User Profile
+
+* Community Feed
+
+* Notifications
+
+
+
+The video must open directly inside the Realms experience.
+
+
+
+Requirements:
+
+
+
+* Open at the selected video.
+
+* Maintain endless vertical scrolling.
+
+* Show Realm actions:
+
+
+
+  * Like
+
+  * Comment
+
+  * Share
+
+  * Save
+
+  * Repost
+
+  * Follow
+
+* Preserve playback position.
+
+* Support swipe navigation between Realms.
+
+
+
+47. Realms Visibility & Distribution
+
+
+
+All videos uploaded through Realms should automatically appear in:
+
+
+
+* User's Realms tab
+
+* Followers' feeds
+
+* Explore/Search
+
+* Community feeds (if shared there)
+
+* Realms feed
+
+
+
+Provide a publishing option:
+
+
+
+☑ Show in Realms
+
+☑ Show in Feed
+
+☑ Share to Community
+
+
+
+Allow creators to choose where the Realm appears.
+
+
+
+48. Settings Audit & Repair
+
+
+
+Perform a complete audit of the Settings section.
+
+
+
+Requirements:
+
+
+
+* Fix all broken tabs.
+
+* Fix all inactive buttons.
+
+* Remove placeholder functionality.
+
+* Ensure every settings option performs a real action.
+
+* Persist all settings to the database.
+
+* Verify settings remain after logout/login.
+
+* Add success and error feedback messages.
+
+
+
+49. Global Language & Translation System
+
+
+
+Implement full multilingual support across GraceSocial.
+
+
+
+Requirements:
+
+
+
+* Language selector under Settings.
+
+* Automatic device language detection.
+
+* Manual language override.
+
+* Language sync across devices.
+
+
+
+Translate:
+
+
+
+* Navigation
+
+* Menus
+
+* Buttons
+
+* Settings
+
+* Notifications
+
+* Community content
+
+* Comments
+
+* Messages
+
+* Prayer requests
+
+* Bible verses (where translations exist)
+
+* Daily verse content
+
+
+
+Add:
+
+
+
+* Translate Post
+
+* Translate Comment
+
+* Translate Message
+
+* Translate Prayer Request
+
+
+
+Support all major languages available through the translation provider.
+
+
+
+Suggested languages include:
+
+
+
+* English
+
+* Swahili
+
+* French
+
+* Spanish
+
+* Portuguese
+
+* German
+
+* Italian
+
+* Dutch
+
+* Russian
+
+* Arabic
+
+* Hebrew
+
+* Turkish
+
+* Hindi
+
+* Bengali
+
+* Urdu
+
+* Chinese (Simplified)
+
+* Chinese (Traditional)
+
+* Japanese
+
+* Korean
+
+* Indonesian
+
+* Vietnamese
+
+* Thai
+
+* Filipino
+
+* Malay
+
+* Greek
+
+* Polish
+
+* Romanian
+
+* Ukrainian
+
+* Czech
+
+* Hungarian
+
+* Danish
+
+* Norwegian
+
+* Swedish
+
+* Finnish
+
+
+
+Use a production-grade i18n architecture and ensure language changes update the entire application instantly without requiring a restart.
