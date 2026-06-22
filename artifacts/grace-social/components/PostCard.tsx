@@ -32,7 +32,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
   const [detailVisible, setDetailVisible] = useState(false);
 
   const isVideo = Boolean(post.videoUri);
-  const hasImage = !isVideo && post.imageIndex !== null && post.imageIndex !== undefined;
+  const hasImage = !isVideo && (post.imageIndex !== null && post.imageIndex !== undefined || Boolean(post.localImageUri));
 
   const heartScale = useSharedValue(0);
   const heartOpacity = useSharedValue(0);
@@ -102,7 +102,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
           style={styles.mediaWrap}
         >
           <Image
-            source={POST_IMAGES[post.imageIndex!]}
+            source={post.localImageUri ? { uri: post.localImageUri } : POST_IMAGES[post.imageIndex!]}
             style={styles.media}
             contentFit="cover"
           />

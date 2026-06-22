@@ -164,4 +164,34 @@ router.get("/users/:userId/follow-status", async (req, res) => {
   }
 });
 
+router.get("/users/search", async (req, res) => {
+  try {
+    const currentUserId = await getAuthUserId(req.headers.authorization);
+    const q = (req.query.q as string || '').trim();
+    if (!q) return res.json({ users: [] });
+
+    const result = await pool.query(
+      `SELECT u.id, u.name, u.username, u.display_name, u.bio, u.avatar_url, u.color,
+              u.followers_count, u.following_count,
+              CASE WHEN f.id IS NOT NULL THEN true ELSE false END AS is_following_back
+       FROM gs_users u
+       LEFT JOIN gs_follows f ON f.follower_id = $1 AND f.following_id = u.id
+       WHERE u.id != $1
+         AND (
+           LOWER(u.name) LIKE $2
+           OR LOWER(u.username) LIKE $2
+           OR LOWER(u.display_name) LIKE $2
+         )
+       ORDER BY u.followers_count DESC
+       LIMIT 30`,
+      [currentUserId ?? 0, `%${q.toLowerCase()}%`]
+    );
+
+    return res.json({ users: result.rows });
+  } catch (err) {
+    console.error("User search error:", err);
+    return res.status(500).json({ error: "Search failed." });
+  }
+});
+
 export default router;

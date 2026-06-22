@@ -11,6 +11,7 @@ export interface Post {
   userInitials: string;
   userColor: string;
   imageIndex: number | null;
+  localImageUri?: string;
   videoUri?: string;
   caption: string;
   bibleVerse?: { reference: string; text: string };
