@@ -29,8 +29,8 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "PORT=8081 pnpm --filter @workspace/grace-social run dev"
-waitForPort = 8081
+args = "PORT=18396 pnpm --filter @workspace/grace-social run dev"
+waitForPort = 18396
 
 [agent]
 stack = "PNPM_WORKSPACE"
