@@ -124,22 +124,32 @@ export default function CommunityDetailScreen() {
             </View>
           </View>
 
-          <TouchableOpacity
-            style={[
-              styles.joinBtn,
-              { backgroundColor: community.isJoined ? colors.muted : community.color, borderColor: community.color },
-            ]}
-            onPress={handleJoin}
-          >
-            <Feather
-              name={community.isJoined ? 'check' : 'plus'}
-              size={16}
-              color={community.isJoined ? community.color : '#fff'}
-            />
-            <Text style={[styles.joinText, { color: community.isJoined ? community.color : '#fff' }]}>
-              {community.isJoined ? 'Joined' : 'Join Community'}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.heroButtons}>
+            <TouchableOpacity
+              style={[
+                styles.joinBtn,
+                { backgroundColor: community.isJoined ? colors.muted : community.color, borderColor: community.color },
+              ]}
+              onPress={handleJoin}
+            >
+              <Feather
+                name={community.isJoined ? 'check' : 'plus'}
+                size={16}
+                color={community.isJoined ? community.color : '#fff'}
+              />
+              <Text style={[styles.joinText, { color: community.isJoined ? community.color : '#fff' }]}>
+                {community.isJoined ? 'Joined' : 'Join Community'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.chatBtn, { borderColor: community.color, backgroundColor: community.color + '15' }]}
+              onPress={() => router.push({ pathname: '/community-chat', params: { id: community.id } })}
+            >
+              <Feather name="message-circle" size={16} color={community.color} />
+              <Text style={[styles.chatBtnText, { color: community.color }]}>Group Chat</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={[styles.tabs, { borderBottomColor: colors.border }]}>
@@ -288,8 +298,11 @@ const styles = StyleSheet.create({
   statNum: { fontSize: 18, fontFamily: 'Inter_700Bold' },
   statLabel: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
   statDivider: { width: 1, height: 32 },
-  joinBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 24, paddingHorizontal: 24, paddingVertical: 11, borderWidth: 1.5, marginTop: 8 },
+  heroButtons: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  joinBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 24, paddingHorizontal: 20, paddingVertical: 11, borderWidth: 1.5 },
   joinText: { fontSize: 15, fontFamily: 'Inter_700Bold' },
+  chatBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 24, paddingHorizontal: 20, paddingVertical: 11, borderWidth: 1.5 },
+  chatBtnText: { fontSize: 15, fontFamily: 'Inter_700Bold' },
   tabs: { flexDirection: 'row', borderBottomWidth: 0.5 },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 13 },
   tabText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },

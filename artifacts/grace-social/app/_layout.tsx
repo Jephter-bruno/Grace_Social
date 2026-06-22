@@ -35,6 +35,7 @@ function RootLayoutNav() {
       <Stack.Screen name="messages" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="prayer-groups" options={{ headerShown: false, presentation: 'modal' }} />
       <Stack.Screen name="community-detail" options={{ headerShown: false }} />
+      <Stack.Screen name="community-chat" options={{ headerShown: false }} />
     </Stack>
   );
 }
