@@ -16,6 +16,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { LoginScreen } from '@/components/LoginScreen';
+import { NotificationToast } from '@/components/NotificationToast';
 import { AppProvider } from '@/context/AppContext';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -59,6 +60,7 @@ function AppGate() {
         <GestureHandlerRootView style={{ flex: 1 }}>
           <KeyboardProvider>
             <AppProvider>
+              <NotificationToast />
               <RootLayoutNav />
             </AppProvider>
           </KeyboardProvider>

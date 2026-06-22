@@ -92,7 +92,21 @@ export interface Community {
   isJoined: boolean;
 }
 
-export type NotificationType = 'like' | 'comment' | 'prayer' | 'follow';
+export type NotificationType =
+  | 'like'
+  | 'comment'
+  | 'comment_like'
+  | 'follow'
+  | 'mention'
+  | 'share'
+  | 'repost'
+  | 'dm'
+  | 'community_invite'
+  | 'community_announcement'
+  | 'prayer_response'
+  | 'prayer_pray'
+  | 'verse_share'
+  | 'story_reply';
 
 export interface Notification {
   id: string;
@@ -105,6 +119,7 @@ export interface Notification {
   postImageIndex?: number;
   targetTab?: string;
   isRead: boolean;
+  createdAt: number;
 }
 
 export interface UserProfile {
@@ -139,6 +154,9 @@ interface AppContextType {
   updateProfile: (updates: Partial<UserProfile>) => void;
   setPendingVerse: (verse: PendingVerse | null) => void;
   markNotificationRead: (id: string) => void;
+  addNotification: (n: Omit<Notification, 'id' | 'createdAt' | 'isRead'>) => void;
+  deleteNotification: (id: string) => void;
+  deleteAllNotifications: () => void;
   toggleLike: (postId: string) => void;
   toggleSave: (postId: string) => void;
   togglePray: (prayerId: string) => void;
@@ -418,17 +436,26 @@ const INITIAL_COMMUNITIES: Community[] = [
   { id: 'c6', name: 'Prayer Warriors', description: 'Dedicated intercessors committed to praying for the church, community, and world.', members: 204, category: 'Prayer', iconName: 'sun', color: '#F39C12', isJoined: true },
 ];
 
+const NOW = Date.now();
+const MIN = 60000;
+const HOUR = 3600000;
+const DAY = 86400000;
+
 const INITIAL_NOTIFICATIONS: Notification[] = [
-  { id: 'n1', type: 'like', userName: 'Pastor James', userInitials: 'PJ', userColor: '#D4A843', message: 'liked your post about morning devotion.', timestamp: '2m ago', postImageIndex: 2, targetTab: '/', isRead: false },
-  { id: 'n2', type: 'comment', userName: 'Sarah Williams', userInitials: 'SW', userColor: '#9B59B6', message: 'commented: "Psalm 119 is such a treasure! Love this!" ✨', timestamp: '5m ago', postImageIndex: 2, targetTab: '/', isRead: false },
-  { id: 'n3', type: 'prayer', userName: 'Mary K.', userInitials: 'MK', userColor: '#E91E8C', message: 'joined your prayer circle and is praying for you. 🙏', timestamp: '15m ago', targetTab: '/prayer', isRead: false },
-  { id: 'n4', type: 'like', userName: 'Grace Ministry', userInitials: 'GM', userColor: '#F39C12', message: 'liked your sunrise photo.', timestamp: '34m ago', postImageIndex: 1, targetTab: '/', isRead: false },
-  { id: 'n5', type: 'follow', userName: 'Thomas B.', userInitials: 'TB', userColor: '#E74C3C', message: 'started following you.', timestamp: '1h ago', targetTab: '/profile', isRead: false },
-  { id: 'n6', type: 'comment', userName: 'David Livingston', userInitials: 'DL', userColor: '#27AE60', message: 'commented: "The skies truly declare His glory!" 🌄', timestamp: '2h ago', postImageIndex: 1, targetTab: '/', isRead: true },
-  { id: 'n7', type: 'like', userName: 'Anna P.', userInitials: 'AP', userColor: '#2980B9', message: 'and 12 others liked your post.', timestamp: '3h ago', postImageIndex: 2, targetTab: '/', isRead: true },
-  { id: 'n8', type: 'prayer', userName: 'Ruth M.', userInitials: 'RM', userColor: '#8E44AD', message: 'is interceding for you in the Prayer Wall. 💙', timestamp: '5h ago', targetTab: '/prayer', isRead: true },
-  { id: 'n9', type: 'follow', userName: 'James O.', userInitials: 'JO', userColor: '#16A085', message: 'started following you.', timestamp: '1d ago', targetTab: '/profile', isRead: true },
-  { id: 'n10', type: 'like', userName: 'Worship House', userInitials: 'WH', userColor: '#9B59B6', message: 'liked your devotional post.', timestamp: '2d ago', postImageIndex: 2, targetTab: '/', isRead: true },
+  { id: 'n1', type: 'like', userName: 'Pastor James', userInitials: 'PJ', userColor: '#D4A843', message: 'liked your post about morning devotion.', timestamp: '2m ago', postImageIndex: 2, targetTab: '/', isRead: false, createdAt: NOW - 2 * MIN },
+  { id: 'n2', type: 'comment', userName: 'Sarah Williams', userInitials: 'SW', userColor: '#9B59B6', message: 'commented: "Psalm 119 is such a treasure! Love this!" ✨', timestamp: '5m ago', postImageIndex: 2, targetTab: '/', isRead: false, createdAt: NOW - 5 * MIN },
+  { id: 'n3', type: 'prayer_pray', userName: 'Mary K.', userInitials: 'MK', userColor: '#E91E8C', message: 'is praying for your request. 🙏', timestamp: '15m ago', targetTab: '/prayer', isRead: false, createdAt: NOW - 15 * MIN },
+  { id: 'n4', type: 'mention', userName: 'Grace Ministry', userInitials: 'GM', userColor: '#F39C12', message: 'mentioned you: "Blessed by @gracemember\'s testimony!"', timestamp: '34m ago', postImageIndex: 1, targetTab: '/', isRead: false, createdAt: NOW - 34 * MIN },
+  { id: 'n5', type: 'follow', userName: 'Thomas B.', userInitials: 'TB', userColor: '#E74C3C', message: 'started following you.', timestamp: '1h ago', targetTab: '/profile', isRead: false, createdAt: NOW - HOUR },
+  { id: 'n6', type: 'verse_share', userName: 'David Livingston', userInitials: 'DL', userColor: '#27AE60', message: 'shared a Bible verse with you: Psalm 46:1.', timestamp: '2h ago', targetTab: '/', isRead: false, createdAt: NOW - 2 * HOUR },
+  { id: 'n7', type: 'prayer_response', userName: 'Anna P.', userInitials: 'AP', userColor: '#2980B9', message: 'responded to your prayer request. 💙', timestamp: '3h ago', targetTab: '/prayer', isRead: true, createdAt: NOW - 3 * HOUR },
+  { id: 'n8', type: 'community_announcement', userName: 'Worship Warriors', userInitials: 'WW', userColor: '#8E44AD', message: 'posted an announcement: "Prayer night this Friday 7PM!"', timestamp: '5h ago', targetTab: '/community', isRead: true, createdAt: NOW - 5 * HOUR },
+  { id: 'n9', type: 'share', userName: 'James O.', userInitials: 'JO', userColor: '#16A085', message: 'shared your post with their followers.', timestamp: '6h ago', postImageIndex: 0, targetTab: '/', isRead: true, createdAt: NOW - 6 * HOUR },
+  { id: 'n10', type: 'community_invite', userName: 'Ruth M.', userInitials: 'RM', userColor: '#9B59B6', message: 'invited you to join "Daily Devotions" community.', timestamp: '1d ago', targetTab: '/community', isRead: true, createdAt: NOW - DAY },
+  { id: 'n11', type: 'repost', userName: 'Worship House', userInitials: 'WH', userColor: '#3B82F6', message: 'reposted your devotional post.', timestamp: '1d ago', postImageIndex: 2, targetTab: '/', isRead: true, createdAt: NOW - DAY - HOUR },
+  { id: 'n12', type: 'dm', userName: 'Sarah M.', userInitials: 'SM', color: '#E91E8C', userColor: '#E91E8C', message: 'sent you a message: "Can we pray together sometime?"', timestamp: '2d ago', targetTab: '/messages', isRead: true, createdAt: NOW - 2 * DAY },
+  { id: 'n13', type: 'comment_like', userName: 'John A.', userInitials: 'JA', userColor: '#F59E0B', message: 'liked your comment on Pastor James\'s post.', timestamp: '2d ago', postImageIndex: 0, targetTab: '/', isRead: true, createdAt: NOW - 2 * DAY - HOUR },
+  { id: 'n14', type: 'story_reply', userName: 'Lydia Chen', userInitials: 'LC', userColor: '#EC4899', message: 'replied to your story: "So beautiful! 🙌"', timestamp: '3d ago', targetTab: '/', isRead: true, createdAt: NOW - 3 * DAY },
 ];
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
@@ -511,6 +538,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, isRead: true } : n)));
   }, []);
 
+  const addNotification = useCallback((n: Omit<Notification, 'id' | 'createdAt' | 'isRead'>) => {
+    const newN: Notification = { ...n, id: Date.now().toString() + Math.random().toString(36).substr(2, 6), createdAt: Date.now(), isRead: false };
+    setNotifications((prev) => [newN, ...prev]);
+  }, []);
+
+  const deleteNotification = useCallback((id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  }, []);
+
+  const deleteAllNotifications = useCallback(() => {
+    setNotifications([]);
+  }, []);
+
+  const SIMULATED_NOTIFICATIONS: Omit<Notification, 'id' | 'createdAt' | 'isRead'>[] = [
+    { type: 'like', userName: 'Priscilla A.', userInitials: 'PA', userColor: '#EC4899', message: 'liked your morning devotion post.', timestamp: 'just now', postImageIndex: 2, targetTab: '/' },
+    { type: 'follow', userName: 'Emmanuel K.', userInitials: 'EK', userColor: '#10B981', message: 'started following you.', timestamp: 'just now', targetTab: '/profile' },
+    { type: 'comment', userName: 'Grace Ministry', userInitials: 'GM', userColor: '#F39C12', message: 'commented: "Amen! This is so encouraging 🙌"', timestamp: 'just now', postImageIndex: 0, targetTab: '/' },
+    { type: 'prayer_pray', userName: 'Sister Ruth', userInitials: 'SR', userColor: '#8B5CF6', message: 'is praying for your request. 🙏', timestamp: 'just now', targetTab: '/prayer' },
+    { type: 'verse_share', userName: 'Joshua M.', userInitials: 'JM', userColor: '#3B82F6', message: 'shared Philippians 4:13 with you.', timestamp: 'just now', targetTab: '/' },
+    { type: 'dm', userName: 'Deborah C.', userInitials: 'DC', userColor: '#F59E0B', message: 'sent you a message: "God bless you! 💙"', timestamp: 'just now', targetTab: '/messages' },
+    { type: 'community_announcement', userName: 'Daily Devotions', userInitials: 'DD', userColor: '#27AE60', message: 'posted: "Join us for sunrise prayer tomorrow!"', timestamp: 'just now', targetTab: '/community' },
+    { type: 'repost', userName: 'Worship House', userInitials: 'WH', userColor: '#6366F1', message: 'reposted your scripture post to their community.', timestamp: 'just now', postImageIndex: 1, targetTab: '/' },
+    { type: 'mention', userName: 'Pastor James', userInitials: 'PJ', userColor: '#D4A843', message: 'mentioned you in a post: "Inspired by @gracemember!"', timestamp: 'just now', targetTab: '/' },
+    { type: 'prayer_response', userName: 'Hannah B.', userInitials: 'HB', userColor: '#E91E8C', message: 'responded to your prayer with a scripture. 📖', timestamp: 'just now', targetTab: '/prayer' },
+  ];
+
+  useEffect(() => {
+    let idx = 0;
+    const send = () => {
+      addNotification(SIMULATED_NOTIFICATIONS[idx % SIMULATED_NOTIFICATIONS.length]);
+      idx++;
+    };
+    const firstDelay = setTimeout(send, 18000);
+    const interval = setInterval(send, 35000);
+    return () => { clearTimeout(firstDelay); clearInterval(interval); };
+  }, []);
+
   const markStorySeen = useCallback((storyId: string) => {
     setStories((prev) => prev.map((s) => (s.id === storyId ? { ...s, seen: true } : s)));
   }, []);
@@ -538,7 +602,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AppContext.Provider value={{ posts, stories, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, updateProfile, setPendingVerse, markNotificationRead, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, markStorySeen, addStory }}>
+    <AppContext.Provider value={{ posts, stories, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, markStorySeen, addStory }}>
       {children}
     </AppContext.Provider>
   );
