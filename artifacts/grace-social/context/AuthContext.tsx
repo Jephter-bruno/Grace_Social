@@ -26,6 +26,9 @@ interface AuthContextType {
   signup: (name: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   updateProfile: (fields: Partial<Pick<AuthUser, 'displayName' | 'username' | 'bio' | 'avatarUrl' | 'color'>>) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
+  followUser: (userId: number) => Promise<{ success: boolean; followersCount?: number; error?: string }>;
+  unfollowUser: (userId: number) => Promise<{ success: boolean; followersCount?: number; error?: string }>;
+  refreshCurrentUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -152,6 +155,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setCurrentUser(null);
   }, [authToken]);
 
+  const refreshCurrentUser = useCallback(async () => {
+    if (!authToken) return;
+    const res = await apiRequest('/auth/me', { token: authToken });
+    if (res.ok && res.data.user) {
+      setCurrentUser(res.data.user as AuthUser);
+    }
+  }, [authToken]);
+
+  const followUser = useCallback(async (userId: number): Promise<{ success: boolean; followersCount?: number; error?: string }> => {
+    if (!authToken) return { success: false, error: 'Not authenticated.' };
+    const res = await apiRequest(`/users/${userId}/follow`, { method: 'POST', token: authToken });
+    if (!res.ok) return { success: false, error: (res.data.error as string) || 'Follow failed.' };
+    await refreshCurrentUser();
+    return { success: true, followersCount: res.data.followersCount as number };
+  }, [authToken, refreshCurrentUser]);
+
+  const unfollowUser = useCallback(async (userId: number): Promise<{ success: boolean; followersCount?: number; error?: string }> => {
+    if (!authToken) return { success: false, error: 'Not authenticated.' };
+    const res = await apiRequest(`/users/${userId}/follow`, { method: 'DELETE', token: authToken });
+    if (!res.ok) return { success: false, error: (res.data.error as string) || 'Unfollow failed.' };
+    await refreshCurrentUser();
+    return { success: true, followersCount: res.data.followersCount as number };
+  }, [authToken, refreshCurrentUser]);
+
   return (
     <AuthContext.Provider value={{
       isLoggedIn: currentUser !== null,
@@ -162,6 +189,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signup,
       updateProfile,
       logout,
+      followUser,
+      unfollowUser,
+      refreshCurrentUser,
     }}>
       {children}
     </AuthContext.Provider>

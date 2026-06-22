@@ -275,11 +275,31 @@ export default function ProfileScreen() {
 
           {/* Stats row */}
           <View style={styles.statsRow}>
-            <TouchableOpacity style={styles.statItem}>
+            <TouchableOpacity
+              style={styles.statItem}
+              onPress={() => {
+                if (!currentUser) return;
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push({
+                  pathname: '/follow-list',
+                  params: { userId: String(currentUser.id), type: 'following', userName: name },
+                });
+              }}
+            >
               <Text style={[styles.statValue, { color: colors.foreground }]}>{followingCount}</Text>
               <Text style={[styles.statLabel, { color: colors.mutedForeground }]}> Following</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.statItem}>
+            <TouchableOpacity
+              style={styles.statItem}
+              onPress={() => {
+                if (!currentUser) return;
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push({
+                  pathname: '/follow-list',
+                  params: { userId: String(currentUser.id), type: 'followers', userName: name },
+                });
+              }}
+            >
               <Text style={[styles.statValue, { color: colors.foreground }]}>{followersCount}</Text>
               <Text style={[styles.statLabel, { color: colors.mutedForeground }]}> Followers</Text>
             </TouchableOpacity>
