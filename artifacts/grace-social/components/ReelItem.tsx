@@ -51,7 +51,7 @@ interface ReelItemProps {
 
 export function ReelItem({ reel, isActive }: ReelItemProps) {
   const insets = useSafeAreaInsets();
-  const { toggleReelLike, toggleReelSave, toggleFollow, incrementReelShares } = useApp();
+  const { toggleReelLike, toggleReelSave, toggleFollow, isFollowingUser, incrementReelShares } = useApp();
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [commentsVisible, setCommentsVisible] = useState(false);
@@ -120,7 +120,7 @@ export function ReelItem({ reel, isActive }: ReelItemProps) {
   const tapGesture = Gesture.Exclusive(doubleTap, singleTap);
 
   const handleLike = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); toggleReelLike(reel.id); };
-  const handleFollow = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); toggleFollow(reel.id); };
+  const handleFollow = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); toggleFollow(reel.userHandle); };
   const handleSave = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     toggleReelSave(reel.id);
@@ -236,7 +236,7 @@ export function ReelItem({ reel, isActive }: ReelItemProps) {
             <Text style={styles.creatorName}>{reel.userName}</Text>
             <Text style={styles.creatorHandle}>{reel.userHandle}</Text>
           </View>
-          {!reel.isFollowing && (
+          {!isFollowingUser(reel.userHandle) && (
             <TouchableOpacity style={styles.followBtn} onPress={handleFollow}>
               <Text style={styles.followBtnText}>Follow</Text>
             </TouchableOpacity>

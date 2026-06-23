@@ -156,6 +156,8 @@ interface AppContextType {
   unreadCount: number;
   userProfile: UserProfile;
   pendingVerse: PendingVerse | null;
+  followedHandles: Record<string, boolean>;
+  isFollowingUser: (handle: string) => boolean;
   updateProfile: (updates: Partial<UserProfile>) => void;
   setPendingVerse: (verse: PendingVerse | null) => void;
   markNotificationRead: (id: string) => void;
@@ -165,7 +167,7 @@ interface AppContextType {
   toggleLike: (postId: string) => void;
   toggleSave: (postId: string) => void;
   togglePray: (prayerId: string) => void;
-  toggleFollow: (reelId: string) => void;
+  toggleFollow: (handle: string) => void;
   toggleJoin: (communityId: string) => void;
   toggleReelLike: (reelId: string) => void;
   toggleReelSave: (reelId: string) => void;
@@ -502,8 +504,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setReels((prev) => prev.map((r) => r.id === reelId ? { ...r, shares: r.shares + 1 } : r));
   }, []);
 
-  const toggleFollow = useCallback((reelId: string) => {
-    setReels((prev) => prev.map((r) => (r.id === reelId ? { ...r, isFollowing: !r.isFollowing } : r)));
+  // Per-user follow state keyed by userHandle — seed with handles already followed in initial reels
+  const [followedHandles, setFollowedHandles] = useState<Record<string, boolean>>({
+    '@pastorjames': true,
+    '@graceministry': true,
+    '@sarahw': true,
+  });
+
+  const isFollowingUser = useCallback((handle: string) => !!followedHandles[handle], [followedHandles]);
+
+  const toggleFollow = useCallback((handle: string) => {
+    setFollowedHandles((prev) => {
+      const wasFollowing = !!prev[handle];
+      // Sync reels too so the per-reel isFollowing stays consistent
+      setReels((prevReels) =>
+        prevReels.map((r) => (r.userHandle === handle ? { ...r, isFollowing: !wasFollowing } : r))
+      );
+      return { ...prev, [handle]: !wasFollowing };
+    });
   }, []);
 
   const toggleJoin = useCallback((communityId: string) => {
@@ -617,7 +635,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AppContext.Provider value={{ posts, stories, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, toggleReelSave, incrementReelShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, markStorySeen, addStory }}>
+    <AppContext.Provider value={{ posts, stories, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, toggleReelSave, incrementReelShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, markStorySeen, addStory }}>
       {children}
     </AppContext.Provider>
   );

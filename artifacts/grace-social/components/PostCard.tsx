@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import { Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -28,11 +29,13 @@ interface PostCardProps {
 
 export function PostCard({ post, isActive = false }: PostCardProps) {
   const colors = useColors();
-  const { toggleLike, toggleSave } = useApp();
+  const { toggleLike, toggleSave, toggleFollow, isFollowingUser } = useApp();
   const [detailVisible, setDetailVisible] = useState(false);
 
+  const isOwnPost = post.userId === 'currentUser';
   const isVideo = Boolean(post.videoUri);
-  const hasImage = !isVideo && (post.imageIndex !== null && post.imageIndex !== undefined || Boolean(post.localImageUri));
+  const hasImage = !isVideo && post.imageIndex !== null && post.imageIndex !== undefined;
+  const isFollowing = isFollowingUser(post.userHandle);
 
   const heartScale = useSharedValue(0);
   const heartOpacity = useSharedValue(0);
@@ -60,7 +63,6 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
     );
   }, [post.isLiked, post.id, toggleLike]);
 
-  // Double-tap gesture for video (like animation)
   const videoDoubleTap = Gesture.Tap()
     .numberOfTaps(2)
     .maxDelay(250)
@@ -75,12 +77,36 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
     toggleLike(post.id);
   };
 
+  const handleFollow = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    toggleFollow(post.userHandle);
+  };
+
+  const openMemberProfile = () => {
+    router.push({
+      pathname: '/member-profile',
+      params: {
+        handle: post.userHandle,
+        name: post.userName,
+        initials: post.userInitials,
+        color: post.userColor,
+        userId: post.userId,
+      },
+    });
+  };
+
   return (
     <View style={[styles.card, { borderBottomColor: colors.border }]}>
       {/* Header */}
       <View style={styles.header}>
-        <AvatarCircle initials={post.userInitials} color={post.userColor} size={38} />
-        <View style={styles.headerInfo}>
+        <TouchableOpacity onPress={isOwnPost ? undefined : openMemberProfile} activeOpacity={isOwnPost ? 1 : 0.7}>
+          <AvatarCircle initials={post.userInitials} color={post.userColor} size={38} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.headerInfo}
+          onPress={isOwnPost ? undefined : openMemberProfile}
+          activeOpacity={isOwnPost ? 1 : 0.7}
+        >
           <View style={styles.nameRow}>
             <Text style={[styles.userName, { color: colors.foreground }]}>{post.userName}</Text>
             {post.userHandle ? (
@@ -88,13 +114,37 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
             ) : null}
           </View>
           <Text style={[styles.timestamp, { color: colors.mutedForeground }]}>{post.timestamp}</Text>
-        </View>
+        </TouchableOpacity>
+
+        {/* Follow / Following button — only for other users */}
+        {!isOwnPost && (
+          <TouchableOpacity
+            style={[
+              styles.followBtn,
+              isFollowing
+                ? { backgroundColor: colors.muted, borderColor: colors.border, borderWidth: 1 }
+                : { backgroundColor: colors.primary },
+            ]}
+            onPress={handleFollow}
+            activeOpacity={0.75}
+          >
+            <Text
+              style={[
+                styles.followBtnText,
+                { color: isFollowing ? colors.mutedForeground : '#fff' },
+              ]}
+            >
+              {isFollowing ? 'Following' : 'Follow'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity style={styles.moreBtn}>
           <Feather name="more-horizontal" size={20} color={colors.mutedForeground} />
         </TouchableOpacity>
       </View>
 
-      {/* Image post — single tap opens detail, no gesture composition needed */}
+      {/* Image post — single tap opens detail */}
       {hasImage && (
         <TouchableOpacity
           activeOpacity={0.97}
@@ -102,7 +152,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
           style={styles.mediaWrap}
         >
           <Image
-            source={post.localImageUri ? { uri: post.localImageUri } : POST_IMAGES[post.imageIndex!]}
+            source={POST_IMAGES[post.imageIndex!]}
             style={styles.media}
             contentFit="cover"
           />
@@ -112,7 +162,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
         </TouchableOpacity>
       )}
 
-      {/* Video post — double-tap to like via GestureDetector */}
+      {/* Video post — double-tap to like */}
       {isVideo && (
         <GestureDetector gesture={videoDoubleTap}>
           <View style={styles.mediaWrap}>
@@ -193,7 +243,6 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
         </TouchableOpacity>
       )}
 
-      {/* Image posts → rich PostDetailModal with sticky thumbnail */}
       {hasImage ? (
         <PostDetailModal
           visible={detailVisible}
@@ -216,10 +265,12 @@ const styles = StyleSheet.create({
   card: { borderBottomWidth: 1, paddingBottom: 4, marginBottom: 4 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, gap: 10 },
   headerInfo: { flex: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' },
   userName: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
   userHandle: { fontSize: 12, fontFamily: 'Inter_400Regular' },
   timestamp: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  followBtn: { paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20 },
+  followBtnText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   moreBtn: { padding: 4 },
   mediaWrap: { width: '100%', aspectRatio: 4 / 3, position: 'relative', overflow: 'hidden' },
   media: { width: '100%', height: '100%' },

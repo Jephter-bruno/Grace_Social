@@ -37,6 +37,7 @@ function RootLayoutNav() {
       <Stack.Screen name="community-detail" options={{ headerShown: false }} />
       <Stack.Screen name="community-chat" options={{ headerShown: false }} />
       <Stack.Screen name="follow-list" options={{ headerShown: false, presentation: 'modal' }} />
+      <Stack.Screen name="member-profile" options={{ headerShown: false }} />
     </Stack>
   );
 }
