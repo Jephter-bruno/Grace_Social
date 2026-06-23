@@ -1,9 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Alert,
   Dimensions,
@@ -28,10 +27,25 @@ import { useTheme } from '@/context/ThemeContext';
 import { useColors } from '@/hooks/useColors';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const GRID_ITEM = (SCREEN_WIDTH - 6) / 3;
+const GRID_GAP = 1.5;
+const GRID_ITEM = (SCREEN_WIDTH - GRID_GAP * 2) / 3;
 
 type Tab = 'Posts' | 'Realms' | 'Saved' | 'Likes';
-const TABS: Tab[] = ['Posts', 'Realms', 'Saved', 'Likes'];
+
+const TAB_ICONS: Record<Tab, string> = {
+  Posts: 'grid',
+  Realms: 'play-circle',
+  Saved: 'bookmark',
+  Likes: 'heart',
+};
+
+const HIGHLIGHTS = [
+  { label: 'Faith', icon: 'sun' },
+  { label: 'Prayer', icon: 'heart' },
+  { label: 'Praise', icon: 'music' },
+  { label: 'Verse', icon: 'book-open' },
+  { label: 'Events', icon: 'calendar' },
+];
 
 type SettingsSection =
   | null
@@ -43,50 +57,6 @@ type SettingsSection =
   | 'help'
   | 'livechat'
   | 'about';
-
-function TwitterPost({ post, colors }: { post: any; colors: any }) {
-  return (
-    <View style={[styles.tweetRow, { borderBottomColor: colors.border }]}>
-      <AvatarCircle initials={post.userInitials ?? 'ME'} color={post.userColor ?? '#4A90A4'} size={42} />
-      <View style={styles.tweetBody}>
-        <View style={styles.tweetHeader}>
-          <Text style={[styles.tweetName, { color: colors.foreground }]}>{post.userName ?? 'Grace Member'}</Text>
-          <Text style={[styles.tweetHandle, { color: colors.mutedForeground }]}>{post.userHandle ?? '@gracemember'}</Text>
-          <Text style={[styles.tweetDot, { color: colors.mutedForeground }]}>·</Text>
-          <Text style={[styles.tweetTime, { color: colors.mutedForeground }]}>{post.timestamp}</Text>
-        </View>
-        <Text style={[styles.tweetText, { color: colors.foreground }]}>{post.caption}</Text>
-        {post.bibleVerse && (
-          <View style={[styles.tweetVerse, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-            <Text style={[styles.tweetVerseText, { color: colors.mutedForeground }]} numberOfLines={2}>
-              "{post.bibleVerse.text}" — {post.bibleVerse.reference}
-            </Text>
-          </View>
-        )}
-        {post.imageIndex !== null && (
-          <Image source={POST_IMAGES[post.imageIndex]} style={styles.tweetImage} contentFit="cover" />
-        )}
-        <View style={styles.tweetActions}>
-          <TouchableOpacity style={styles.tweetAction}>
-            <Feather name="message-circle" size={16} color={colors.mutedForeground} />
-            <Text style={[styles.tweetActionCount, { color: colors.mutedForeground }]}>{post.comments}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tweetAction}>
-            <Feather name="repeat" size={16} color={colors.mutedForeground} />
-            <Text style={[styles.tweetActionCount, { color: colors.mutedForeground }]}>{Math.floor(post.likes / 4)}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tweetAction}>
-            <Feather name="heart" size={16} color={post.isLiked ? '#E53935' : colors.mutedForeground} />
-            <Text style={[styles.tweetActionCount, { color: post.isLiked ? '#E53935' : colors.mutedForeground }]}>{post.likes}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.tweetAction}>
-            <Feather name="share-2" size={16} color={colors.mutedForeground} />
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
-  );
-}
 
 function SectionHeader({ title, onBack, colors }: { title: string; onBack: () => void; colors: any }) {
   return (
@@ -170,6 +140,38 @@ function ToggleRow({
   );
 }
 
+function IgGridItem({ post, colors }: { post: any; colors: any }) {
+  return (
+    <TouchableOpacity activeOpacity={0.85} style={[styles.gridCell, { backgroundColor: colors.muted }]}>
+      {post.imageIndex !== null ? (
+        <Image source={POST_IMAGES[post.imageIndex]} style={styles.gridCellImg} contentFit="cover" />
+      ) : (
+        <View style={[styles.gridCellText, { backgroundColor: colors.card }]}>
+          <Feather name="align-left" size={18} color={colors.mutedForeground} style={{ marginBottom: 4 }} />
+          <Text style={[styles.gridCellCaption, { color: colors.foreground }]} numberOfLines={3}>
+            {post.caption}
+          </Text>
+        </View>
+      )}
+      {post.isLiked && (
+        <View style={styles.gridHeartBadge}>
+          <Feather name="heart" size={10} color="#fff" />
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+function EmptyTab({ icon, message, sub, colors }: { icon: string; message: string; sub: string; colors: any }) {
+  return (
+    <View style={styles.emptyTab}>
+      <Feather name={icon as any} size={36} color={colors.mutedForeground} />
+      <Text style={[styles.emptyTabTitle, { color: colors.foreground }]}>{message}</Text>
+      <Text style={[styles.emptyTabSub, { color: colors.mutedForeground }]}>{sub}</Text>
+    </View>
+  );
+}
+
 export default function ProfileScreen() {
   const { posts, reels } = useApp();
   const { currentUser, logout } = useAuth();
@@ -194,6 +196,7 @@ export default function ProfileScreen() {
   const myPosts = useMemo(() => posts.filter((p) => p.userId === 'currentUser'), [posts]);
   const savedPosts = useMemo(() => posts.filter((p) => p.isSaved), [posts]);
   const likedPosts = useMemo(() => posts.filter((p) => p.isLiked), [posts]);
+  const myReels = reels.slice(0, 9);
 
   const [privacy, setPrivacy] = useState({
     privateAccount: false,
@@ -271,18 +274,30 @@ export default function ProfileScreen() {
   const topPad = isWeb ? 60 : insets.top + 16;
 
   const renderTabContent = () => {
+    const TABS_ARRAY: Tab[] = ['Posts', 'Realms', 'Saved', 'Likes'];
+
     if (activeTab === 'Posts') {
-      if (myPosts.length === 0) return <EmptyTab icon="edit-2" message="You haven't posted yet" sub="Share your faith journey!" colors={colors} />;
-      return myPosts.map((p) => <TwitterPost key={p.id} post={p} colors={colors} />);
+      if (myPosts.length === 0) return <EmptyTab icon="camera" message="No posts yet" sub="Share your faith journey!" colors={colors} />;
+      return (
+        <View style={styles.igGrid}>
+          {myPosts.map((p) => <IgGridItem key={p.id} post={p} colors={colors} />)}
+        </View>
+      );
     }
     if (activeTab === 'Realms') {
-      if (reels.length === 0) return <EmptyTab icon="play-circle" message="No Realms yet" sub="Create your first Realm!" colors={colors} />;
+      if (myReels.length === 0) return <EmptyTab icon="play-circle" message="No Realms yet" sub="Create your first Realm!" colors={colors} />;
       return (
-        <View style={styles.mediaGrid}>
-          {reels.slice(0, 6).map((r) => (
-            <TouchableOpacity key={r.id} style={styles.mediaCell}>
-              <View style={[styles.mediaImg, { backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' }]}>
-                <Feather name="play-circle" size={30} color="rgba(255,255,255,0.8)" />
+        <View style={styles.igGrid}>
+          {myReels.map((r) => (
+            <TouchableOpacity key={r.id} style={[styles.gridCell, { backgroundColor: '#000' }]}>
+              <View style={styles.gridCellImg}>
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#111' }}>
+                  <Feather name="play" size={26} color="rgba(255,255,255,0.9)" />
+                </View>
+              </View>
+              <View style={styles.reelViewsBadge}>
+                <Feather name="play" size={10} color="#fff" />
+                <Text style={styles.reelViewsText}>{r.views >= 1000 ? `${(r.views / 1000).toFixed(1)}k` : r.views}</Text>
               </View>
             </TouchableOpacity>
           ))}
@@ -292,24 +307,18 @@ export default function ProfileScreen() {
     if (activeTab === 'Saved') {
       if (savedPosts.length === 0) return <EmptyTab icon="bookmark" message="No saved posts yet" sub="Save posts to see them here!" colors={colors} />;
       return (
-        <View style={styles.mediaGrid}>
-          {savedPosts.map((p) => (
-            <TouchableOpacity key={p.id} style={styles.mediaCell}>
-              {p.imageIndex !== null ? (
-                <Image source={POST_IMAGES[p.imageIndex]} style={styles.mediaImg} contentFit="cover" />
-              ) : (
-                <View style={[styles.mediaImg, { backgroundColor: colors.muted, alignItems: 'center', justifyContent: 'center' }]}>
-                  <Feather name="file-text" size={22} color={colors.mutedForeground} />
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
+        <View style={styles.igGrid}>
+          {savedPosts.map((p) => <IgGridItem key={p.id} post={p} colors={colors} />)}
         </View>
       );
     }
     if (activeTab === 'Likes') {
       if (likedPosts.length === 0) return <EmptyTab icon="heart" message="No likes yet" sub="Like posts to see them here!" colors={colors} />;
-      return likedPosts.map((p) => <TwitterPost key={p.id} post={p} colors={colors} />);
+      return (
+        <View style={styles.igGrid}>
+          {likedPosts.map((p) => <IgGridItem key={p.id} post={p} colors={colors} />)}
+        </View>
+      );
     }
     return null;
   };
@@ -556,16 +565,12 @@ export default function ProfileScreen() {
           <View style={[styles.settingsHeader, { paddingTop: headerPad, borderBottomColor: colors.border }]}>
             <SectionHeader title="Live Chat" onBack={() => goSection('help')} colors={colors} />
           </View>
-
-          {/* Support agent status bar */}
           <View style={[styles.chatStatusBar, { backgroundColor: colors.primary + '12', borderBottomColor: colors.border }]}>
             <View style={styles.chatAgentDot} />
             <Text style={[styles.chatStatusText, { color: colors.primary }]}>
               Support is online · Mon–Fri, 9am–5pm EST
             </Text>
           </View>
-
-          {/* Messages */}
           <ScrollView
             style={{ flex: 1 }}
             contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 20 }}
@@ -599,7 +604,6 @@ export default function ProfileScreen() {
                 </View>
               </View>
             ))}
-
             {chatTyping && (
               <View style={[styles.chatBubbleWrap, styles.chatBubbleWrapBot]}>
                 <View style={[styles.chatAvatar, { backgroundColor: colors.primary }]}>
@@ -613,8 +617,6 @@ export default function ProfileScreen() {
               </View>
             )}
           </ScrollView>
-
-          {/* Input */}
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
             <View style={[styles.chatInputRow, { borderTopColor: colors.border, backgroundColor: colors.background }]}>
               <TextInput
@@ -791,96 +793,162 @@ export default function ProfileScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: isWeb ? 34 : 90 }}
-      >
-        <LinearGradient
-          colors={isDark ? ['#1A3040', '#0D1A10'] : [colors.primary, colors.accent]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.cover, { paddingTop: isWeb ? 67 : insets.top }]}
-        >
-          <TouchableOpacity style={styles.settingsBtn} onPress={goSettings}>
-            <Feather name="settings" size={22} color="#fff" />
+      {/* ── Instagram-style top navbar ── */}
+      <View style={[styles.igNavBar, { paddingTop: isWeb ? 16 : insets.top, backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+        <View style={{ width: 40 }} />
+        <View style={styles.igNavCenter}>
+          <Text style={[styles.igNavHandle, { color: colors.foreground }]}>{handle}</Text>
+          <Feather name="chevron-down" size={14} color={colors.foreground} style={{ marginTop: 1 }} />
+        </View>
+        <View style={styles.igNavRight}>
+          <TouchableOpacity onPress={() => Alert.alert('New Post', 'Tap the + button in the tab bar to create a post.')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Feather name="plus-square" size={24} color={colors.foreground} />
           </TouchableOpacity>
-        </LinearGradient>
+          <TouchableOpacity onPress={goSettings} style={{ marginLeft: 18 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Feather name="menu" size={24} color={colors.foreground} />
+          </TouchableOpacity>
+        </View>
+      </View>
 
-        <View style={[styles.profileSection, { backgroundColor: colors.background }]}>
-          <View style={styles.avatarFollowRow}>
-            <View style={[styles.avatarRing, { borderColor: colors.background }]}>
-              {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} style={{ width: 82, height: 82, borderRadius: 41 }} contentFit="cover" />
-              ) : (
-                <AvatarCircle initials={initials} color={color} size={82} />
-              )}
-            </View>
-            <TouchableOpacity style={[styles.editBtn, { borderColor: colors.border }]} onPress={() => setEditVisible(true)}>
-              <Text style={[styles.editBtnText, { color: colors.foreground }]}>Edit profile</Text>
-            </TouchableOpacity>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: isWeb ? 34 : 90 }}>
+
+        {/* ── Avatar + Stats row ── */}
+        <View style={[styles.igHeaderRow, { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 14 }]}>
+          {/* Avatar with gradient ring */}
+          <View style={[styles.igAvatarRing, { borderColor: colors.primary }]}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={{ width: 84, height: 84, borderRadius: 42 }} contentFit="cover" />
+            ) : (
+              <AvatarCircle initials={initials} color={color} size={84} />
+            )}
           </View>
 
-          <Text style={[styles.name, { color: colors.foreground }]}>{name}</Text>
-          <Text style={[styles.handle, { color: colors.mutedForeground }]}>{handle}</Text>
-          {!!bio && <Text style={[styles.bio, { color: colors.foreground }]}>{bio}</Text>}
-
-          <View style={styles.metaRow}>
-            <View style={styles.metaItem}>
-              <Feather name="calendar" size={13} color={colors.mutedForeground} />
-              <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
-                Joined {new Date(Date.now()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.statsRow}>
-            <TouchableOpacity
-              style={styles.statItem}
-              onPress={() => {
-                if (!currentUser) return;
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push({ pathname: '/follow-list', params: { userId: String(currentUser.id), type: 'following', userName: name } });
-              }}
-            >
-              <Text style={[styles.statValue, { color: colors.foreground }]}>{followingCount}</Text>
-              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}> Following</Text>
+          {/* Stats: Posts | Followers | Following */}
+          <View style={styles.igStatsGroup}>
+            <TouchableOpacity style={styles.igStatCol}>
+              <Text style={[styles.igStatNum, { color: colors.foreground }]}>{myPosts.length}</Text>
+              <Text style={[styles.igStatLbl, { color: colors.foreground }]}>Posts</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.statItem}
+              style={styles.igStatCol}
               onPress={() => {
                 if (!currentUser) return;
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push({ pathname: '/follow-list', params: { userId: String(currentUser.id), type: 'followers', userName: name } });
               }}
             >
-              <Text style={[styles.statValue, { color: colors.foreground }]}>{followersCount}</Text>
-              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}> Followers</Text>
+              <Text style={[styles.igStatNum, { color: colors.foreground }]}>
+                {followersCount >= 1000 ? `${(followersCount / 1000).toFixed(1)}K` : followersCount}
+              </Text>
+              <Text style={[styles.igStatLbl, { color: colors.foreground }]}>Followers</Text>
             </TouchableOpacity>
-          </View>
-
-          <View style={[styles.appearanceCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <View style={[styles.appearanceIcon, { backgroundColor: isDark ? '#3A3025' : colors.muted }]}>
-              <Feather name={isDark ? 'moon' : 'sun'} size={18} color={isDark ? '#E8B94A' : '#D4A843'} />
-            </View>
-            <View style={styles.appearanceText}>
-              <Text style={[styles.appearanceTitle, { color: colors.foreground }]}>Appearance</Text>
-              <Text style={[styles.appearanceSub, { color: colors.mutedForeground }]}>{isDark ? 'Dark mode on' : 'Light mode on'}</Text>
-            </View>
-            <Switch value={isDark} onValueChange={handleToggleDark} trackColor={{ false: colors.border, true: colors.primary }} thumbColor="#fff" ios_backgroundColor={colors.border} />
+            <TouchableOpacity
+              style={styles.igStatCol}
+              onPress={() => {
+                if (!currentUser) return;
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push({ pathname: '/follow-list', params: { userId: String(currentUser.id), type: 'following', userName: name } });
+              }}
+            >
+              <Text style={[styles.igStatNum, { color: colors.foreground }]}>
+                {followingCount >= 1000 ? `${(followingCount / 1000).toFixed(1)}K` : followingCount}
+              </Text>
+              <Text style={[styles.igStatLbl, { color: colors.foreground }]}>Following</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
-        <View style={[styles.tabBar, { borderBottomColor: colors.border, backgroundColor: colors.background }]}>
-          {TABS.map((tab) => (
-            <TouchableOpacity key={tab} style={styles.tabItem} onPress={() => setActiveTab(tab)}>
-              <Text style={[styles.tabText, { color: activeTab === tab ? colors.foreground : colors.mutedForeground }]}>
-                {tab}
-              </Text>
-              {activeTab === tab && <View style={[styles.tabIndicator, { backgroundColor: colors.primary }]} />}
+        {/* ── Name + bio ── */}
+        <View style={styles.igBioSection}>
+          <Text style={[styles.igName, { color: colors.foreground }]}>{name}</Text>
+          {!!bio
+            ? <Text style={[styles.igBio, { color: colors.foreground }]}>{bio}</Text>
+            : <Text style={[styles.igBioPlaceholder, { color: colors.mutedForeground }]}>Add a bio to tell your faith story…</Text>
+          }
+          <View style={styles.igJoinedRow}>
+            <Feather name="heart" size={12} color={colors.primary} />
+            <Text style={[styles.igJoinedText, { color: colors.mutedForeground }]}>
+              Grace Social member since {new Date(Date.now()).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            </Text>
+          </View>
+        </View>
+
+        {/* ── Action buttons: Edit Profile + Share Profile ── */}
+        <View style={styles.igActionRow}>
+          <TouchableOpacity
+            style={[styles.igActionBtn, { backgroundColor: colors.muted, borderColor: colors.border }]}
+            onPress={() => setEditVisible(true)}
+          >
+            <Text style={[styles.igActionBtnText, { color: colors.foreground }]}>Edit profile</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.igActionBtn, { backgroundColor: colors.muted, borderColor: colors.border }]}
+            onPress={() => Alert.alert('Share Profile', 'Profile link copied: https://gracesocial.app/' + handle.replace('@', ''))}
+          >
+            <Text style={[styles.igActionBtnText, { color: colors.foreground }]}>Share profile</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.igActionIconBtn, { backgroundColor: colors.muted, borderColor: colors.border }]}
+            onPress={goSettings}
+          >
+            <Feather name="user-plus" size={16} color={colors.foreground} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ── Story Highlights ── */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.igHighlightsScroll}
+        >
+          {/* Add new highlight */}
+          <TouchableOpacity
+            style={styles.igHighlightItem}
+            onPress={() => Alert.alert('New Highlight', 'Create a highlight from your saved stories.')}
+          >
+            <View style={[styles.igHighlightCircle, { backgroundColor: colors.muted, borderColor: colors.border, borderWidth: 1.5 }]}>
+              <Feather name="plus" size={22} color={colors.foreground} />
+            </View>
+            <Text style={[styles.igHighlightLabel, { color: colors.foreground }]}>New</Text>
+          </TouchableOpacity>
+
+          {HIGHLIGHTS.map((h) => (
+            <TouchableOpacity
+              key={h.label}
+              style={styles.igHighlightItem}
+              onPress={() => Alert.alert(h.label, `View your ${h.label} highlights.`)}
+            >
+              <View style={[styles.igHighlightCircle, { borderColor: colors.primary, borderWidth: 2 }]}>
+                <View style={[styles.igHighlightInner, { backgroundColor: colors.muted }]}>
+                  <Feather name={h.icon as any} size={22} color={colors.primary} />
+                </View>
+              </View>
+              <Text style={[styles.igHighlightLabel, { color: colors.foreground }]}>{h.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* ── Icon Tab Bar ── */}
+        <View style={[styles.igTabBar, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
+          {(['Posts', 'Realms', 'Saved', 'Likes'] as Tab[]).map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.igTabItem, activeTab === tab && styles.igTabItemActive]}
+              onPress={() => { Haptics.selectionAsync(); setActiveTab(tab); }}
+            >
+              <Feather
+                name={TAB_ICONS[tab] as any}
+                size={22}
+                color={activeTab === tab ? colors.foreground : colors.mutedForeground}
+              />
+              {activeTab === tab && (
+                <View style={[styles.igTabIndicator, { backgroundColor: colors.foreground }]} />
+              )}
             </TouchableOpacity>
           ))}
         </View>
 
+        {/* ── Tab Content ── */}
         <View>{renderTabContent()}</View>
       </ScrollView>
 
@@ -889,64 +957,234 @@ export default function ProfileScreen() {
   );
 }
 
-function EmptyTab({ icon, message, sub, colors }: { icon: string; message: string; sub: string; colors: any }) {
-  return (
-    <View style={styles.emptyTab}>
-      <Feather name={icon as any} size={36} color={colors.mutedForeground} />
-      <Text style={[styles.emptyTabTitle, { color: colors.foreground }]}>{message}</Text>
-      <Text style={[styles.emptyTabSub, { color: colors.mutedForeground }]}>{sub}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  cover: { height: 150, alignItems: 'flex-end', padding: 16 },
-  settingsBtn: { padding: 8 },
-  profileSection: { paddingHorizontal: 16, paddingBottom: 0 },
-  avatarFollowRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: -46, marginBottom: 12 },
-  avatarRing: { width: 88, height: 88, borderRadius: 44, borderWidth: 4, alignItems: 'center', justifyContent: 'center' },
-  editBtn: { borderWidth: 1.5, borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
-  editBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  name: { fontSize: 20, fontFamily: 'Inter_700Bold', marginBottom: 2 },
-  handle: { fontSize: 14, fontFamily: 'Inter_400Regular', marginBottom: 10 },
-  bio: { fontSize: 15, fontFamily: 'Inter_400Regular', lineHeight: 22, marginBottom: 12 },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 12 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
-  statsRow: { flexDirection: 'row', gap: 20, marginBottom: 16 },
-  statItem: { flexDirection: 'row', alignItems: 'baseline' },
-  statValue: { fontSize: 15, fontFamily: 'Inter_700Bold' },
-  statLabel: { fontSize: 14, fontFamily: 'Inter_400Regular' },
-  appearanceCard: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14, borderRadius: 14, borderWidth: 1, marginBottom: 16 },
-  appearanceIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  appearanceText: { flex: 1, gap: 2 },
-  appearanceTitle: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
-  appearanceSub: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  tabBar: { flexDirection: 'row', borderBottomWidth: 0.5, marginTop: 2 },
-  tabItem: { flex: 1, alignItems: 'center', paddingVertical: 14, position: 'relative' },
-  tabText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  tabIndicator: { position: 'absolute', bottom: 0, left: 16, right: 16, height: 3, borderRadius: 3 },
-  tweetRow: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 14, gap: 12, borderBottomWidth: 0.5 },
-  tweetBody: { flex: 1, gap: 6 },
-  tweetHeader: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 },
-  tweetName: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  tweetHandle: { fontSize: 13, fontFamily: 'Inter_400Regular' },
-  tweetDot: { fontSize: 13 },
-  tweetTime: { fontSize: 13, fontFamily: 'Inter_400Regular' },
-  tweetText: { fontSize: 14, fontFamily: 'Inter_400Regular', lineHeight: 20 },
-  tweetVerse: { borderWidth: 1, borderRadius: 10, padding: 10 },
-  tweetVerseText: { fontSize: 12, fontFamily: 'Inter_400Regular', fontStyle: 'italic', lineHeight: 18 },
-  tweetImage: { width: '100%', height: 180, borderRadius: 12, marginTop: 4 },
-  tweetActions: { flexDirection: 'row', gap: 24, marginTop: 4 },
-  tweetAction: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  tweetActionCount: { fontSize: 13, fontFamily: 'Inter_400Regular' },
-  mediaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 2, padding: 2 },
-  mediaCell: { width: GRID_ITEM, height: GRID_ITEM },
-  mediaImg: { width: '100%', height: '100%' },
+
+  igNavBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 10,
+    borderBottomWidth: 0.5,
+  },
+  igNavCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  igNavHandle: {
+    fontSize: 17,
+    fontFamily: 'Inter_700Bold',
+  },
+  igNavRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: 80,
+    justifyContent: 'flex-end',
+  },
+
+  igHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20,
+  },
+  igAvatarRing: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    borderWidth: 2.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  igStatsGroup: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  igStatCol: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  igStatNum: {
+    fontSize: 18,
+    fontFamily: 'Inter_700Bold',
+    lineHeight: 22,
+  },
+  igStatLbl: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+  },
+
+  igBioSection: {
+    paddingHorizontal: 16,
+    gap: 4,
+    marginBottom: 12,
+  },
+  igName: {
+    fontSize: 15,
+    fontFamily: 'Inter_700Bold',
+    marginBottom: 2,
+  },
+  igBio: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    lineHeight: 20,
+  },
+  igBioPlaceholder: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    lineHeight: 20,
+    fontStyle: 'italic',
+  },
+  igJoinedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  igJoinedText: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+  },
+
+  igActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  igActionBtn: {
+    flex: 1,
+    borderRadius: 10,
+    borderWidth: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  igActionBtnText: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  igActionIconBtn: {
+    width: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  igHighlightsScroll: {
+    paddingHorizontal: 12,
+    paddingBottom: 16,
+    gap: 4,
+  },
+  igHighlightItem: {
+    alignItems: 'center',
+    gap: 6,
+    marginHorizontal: 6,
+    width: 68,
+  },
+  igHighlightCircle: {
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  igHighlightInner: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  igHighlightLabel: {
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+    textAlign: 'center',
+  },
+
+  igTabBar: {
+    flexDirection: 'row',
+    borderTopWidth: 0.5,
+    borderBottomWidth: 0.5,
+  },
+  igTabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    position: 'relative',
+  },
+  igTabItemActive: {},
+  igTabIndicator: {
+    position: 'absolute',
+    top: 0,
+    left: 12,
+    right: 12,
+    height: 2,
+    borderRadius: 2,
+  },
+
+  igGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: GRID_GAP,
+    padding: 0,
+  },
+  gridCell: {
+    width: GRID_ITEM,
+    height: GRID_ITEM,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  gridCellImg: {
+    width: '100%',
+    height: '100%',
+  },
+  gridCellText: {
+    width: '100%',
+    height: '100%',
+    padding: 10,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  gridCellCaption: {
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+    lineHeight: 16,
+  },
+  gridHeartBadge: {
+    position: 'absolute',
+    bottom: 6,
+    right: 6,
+    backgroundColor: 'rgba(229,57,53,0.85)',
+    borderRadius: 8,
+    padding: 3,
+  },
+  reelViewsBadge: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 8,
+    paddingHorizontal: 5,
+    paddingVertical: 3,
+  },
+  reelViewsText: {
+    color: '#fff',
+    fontSize: 10,
+    fontFamily: 'Inter_600SemiBold',
+  },
+
   emptyTab: { alignItems: 'center', paddingTop: 60, paddingHorizontal: 40, gap: 12 },
   emptyTabTitle: { fontSize: 18, fontFamily: 'Inter_600SemiBold', textAlign: 'center' },
   emptyTabSub: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center' },
+
   settingsHeader: { borderBottomWidth: 0.5 },
   settingsBack: { padding: 8, width: 40 },
   settingsTitle: { flex: 1, textAlign: 'center', fontSize: 18, fontFamily: 'Inter_600SemiBold' },
