@@ -55,7 +55,7 @@ _Populate as you build — explicit user instructions worth remembering across s
 
 ## Gotchas
 
-- Expo Metro hardcodes port 5000 (`--port 5000`) — do not use `$PORT` in the dev script
+- Expo dev script uses `--port ${PORT:-5000}`: the "Grace Social" webview workflow (no $PORT) uses 5000; the `artifacts/grace-social: expo` canvas workflow has $PORT set by Replit and uses that assigned port — both can run simultaneously without conflict
 - `EXPO_PUBLIC_*` vars are baked into the Metro bundle at build time — restart the workflow after changing them
 - API server requires `NODE_ENV` and `PORT` set; the `dev` script sets both via `export NODE_ENV=development && PORT=3000`
 - `bcrypt` (native) is excluded from API bundle — use `bcryptjs` only
