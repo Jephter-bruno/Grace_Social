@@ -30,6 +30,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AvatarCircle } from '@/components/AvatarCircle';
 import { CommentsModal } from '@/components/CommentsModal';
+import { DuetModal } from '@/components/DuetModal';
 import { VideoPlayer } from '@/components/VideoPlayer';
 import { POST_IMAGES } from '@/constants/images';
 import { Reel, useApp } from '@/context/AppContext';
@@ -55,6 +56,7 @@ export function ReelItem({ reel, isActive }: ReelItemProps) {
   const [isMuted, setIsMuted] = useState(false);
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [moreSheetVisible, setMoreSheetVisible] = useState(false);
+  const [duetVisible, setDuetVisible] = useState(false);
   const [descExpanded, setDescExpanded] = useState(false);
   const [toastText, setToastText] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
@@ -167,7 +169,7 @@ export function ReelItem({ reel, isActive }: ReelItemProps) {
     { icon: 'link', label: 'Copy link', action: () => closeMoreSheet(() => showToast('Link copied to clipboard')) },
     { icon: 'download', label: 'Save video', action: () => closeMoreSheet(() => showToast('Video saved to device')) },
     { icon: 'music', label: 'View original audio', action: () => closeMoreSheet(() => showToast(`Audio: ${reel.audioName}`)) },
-    { icon: 'users', label: 'Duet', action: () => closeMoreSheet(() => showToast('Duet coming soon')) },
+    { icon: 'users', label: 'Duet', action: () => closeMoreSheet(() => setDuetVisible(true)) },
     { icon: 'flag', label: 'Report', action: () => closeMoreSheet(() => showToast('Report submitted — thank you')) },
   ];
 
@@ -317,6 +319,13 @@ export function ReelItem({ reel, isActive }: ReelItemProps) {
         entityType="post"
         title="Realm Comments"
         onClose={() => setCommentsVisible(false)}
+      />
+
+      {/* ── Duet modal ── */}
+      <DuetModal
+        visible={duetVisible}
+        onClose={() => setDuetVisible(false)}
+        originalReel={reel}
       />
 
       {/* ── More options bottom sheet ── */}
