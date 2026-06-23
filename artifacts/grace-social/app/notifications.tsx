@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AdCard } from '@/components/AdCard';
 import { AvatarCircle } from '@/components/AvatarCircle';
 import { POST_IMAGES } from '@/constants/images';
 import { Notification, NotificationType, useApp } from '@/context/AppContext';
@@ -156,25 +157,39 @@ export default function NotificationsScreen() {
 
   type FlatItem =
     | { kind: 'header'; title: string; count: number }
-    | { kind: 'item'; item: Notification };
+    | { kind: 'item'; item: Notification }
+    | { kind: 'ad'; adIndex: number };
 
   const flatData = useMemo<FlatItem[]>(() => {
     const filteredUnread = filtered.filter((n) => !n.isRead);
     const todayFiltered = filtered.filter((n) => n.isRead && !n.timestamp.includes('d ago'));
     const earlierFiltered = filtered.filter((n) => n.isRead && n.timestamp.includes('d ago'));
-    const result: FlatItem[] = [];
+    const rawItems: FlatItem[] = [];
     if (filteredUnread.length) {
-      result.push({ kind: 'header', title: 'New', count: filteredUnread.length });
-      filteredUnread.forEach((item) => result.push({ kind: 'item', item }));
+      rawItems.push({ kind: 'header', title: 'New', count: filteredUnread.length });
+      filteredUnread.forEach((item) => rawItems.push({ kind: 'item', item }));
     }
     if (todayFiltered.length) {
-      result.push({ kind: 'header', title: 'Today', count: todayFiltered.length });
-      todayFiltered.forEach((item) => result.push({ kind: 'item', item }));
+      rawItems.push({ kind: 'header', title: 'Today', count: todayFiltered.length });
+      todayFiltered.forEach((item) => rawItems.push({ kind: 'item', item }));
     }
     if (earlierFiltered.length) {
-      result.push({ kind: 'header', title: 'Earlier', count: earlierFiltered.length });
-      earlierFiltered.forEach((item) => result.push({ kind: 'item', item }));
+      rawItems.push({ kind: 'header', title: 'Earlier', count: earlierFiltered.length });
+      earlierFiltered.forEach((item) => rawItems.push({ kind: 'item', item }));
     }
+    // Inject an ad every 5 notification items (skip headers for counting)
+    const result: FlatItem[] = [];
+    let itemCount = 0;
+    let adCount = 0;
+    rawItems.forEach((entry) => {
+      result.push(entry);
+      if (entry.kind === 'item') {
+        itemCount += 1;
+        if (itemCount % 5 === 0) {
+          result.push({ kind: 'ad', adIndex: adCount++ });
+        }
+      }
+    });
     return result;
   }, [filtered]);
 
@@ -299,9 +314,11 @@ export default function NotificationsScreen() {
 
       <FlatList
         data={flatData}
-        keyExtractor={(item, idx) =>
-          item.kind === 'header' ? `hdr-${item.title}-${idx}` : item.item.id
-        }
+        keyExtractor={(item, idx) => {
+          if (item.kind === 'header') return `hdr-${item.title}-${idx}`;
+          if (item.kind === 'ad') return `ad-${item.adIndex}-${idx}`;
+          return item.item.id;
+        }}
         renderItem={({ item }) => {
           if (item.kind === 'header') {
             return (
@@ -314,6 +331,13 @@ export default function NotificationsScreen() {
                     {item.count}
                   </Text>
                 </View>
+              </View>
+            );
+          }
+          if (item.kind === 'ad') {
+            return (
+              <View style={{ paddingHorizontal: 14, paddingVertical: 4 }}>
+                <AdCard index={item.adIndex} compact />
               </View>
             );
           }

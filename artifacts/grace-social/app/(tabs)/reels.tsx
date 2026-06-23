@@ -1,13 +1,31 @@
 import { Feather } from '@expo/vector-icons';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Dimensions, FlatList, Platform, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { NewReelModal } from '@/components/NewReelModal';
+import { ReelAdItem } from '@/components/ReelAdItem';
 import { ReelItem } from '@/components/ReelItem';
 import { Reel, useApp } from '@/context/AppContext';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const AD_EVERY = 3;
+
+type FeedEntry =
+  | { kind: 'reel'; data: Reel }
+  | { kind: 'ad'; adIndex: number };
+
+function buildReelFeed(reels: Reel[]): FeedEntry[] {
+  const result: FeedEntry[] = [];
+  let adCount = 0;
+  reels.forEach((reel, i) => {
+    result.push({ kind: 'reel', data: reel });
+    if ((i + 1) % AD_EVERY === 0) {
+      result.push({ kind: 'ad', adIndex: adCount++ });
+    }
+  });
+  return result;
+}
 
 export default function ReelsScreen() {
   const { reels } = useApp();
@@ -15,6 +33,8 @@ export default function ReelsScreen() {
   const isWeb = Platform.OS === 'web';
   const [activeIndex, setActiveIndex] = useState(0);
   const [showNewReel, setShowNewReel] = useState(false);
+
+  const feed = useMemo(() => buildReelFeed(reels), [reels]);
 
   const viewabilityConfig = useRef({
     viewAreaCoveragePercentThreshold: 60,
@@ -29,9 +49,12 @@ export default function ReelsScreen() {
   );
 
   const renderItem = useCallback(
-    ({ item, index }: { item: Reel; index: number }) => (
-      <ReelItem reel={item} isActive={index === activeIndex} />
-    ),
+    ({ item, index }: { item: FeedEntry; index: number }) => {
+      if (item.kind === 'ad') {
+        return <ReelAdItem adIndex={item.adIndex} isActive={index === activeIndex} />;
+      }
+      return <ReelItem reel={item.data} isActive={index === activeIndex} />;
+    },
     [activeIndex]
   );
 
@@ -47,8 +70,10 @@ export default function ReelsScreen() {
   return (
     <View style={styles.container}>
       <FlatList
-        data={reels}
-        keyExtractor={(item) => item.id}
+        data={feed}
+        keyExtractor={(item, idx) =>
+          item.kind === 'ad' ? `ad-${item.adIndex}-${idx}` : item.data.id
+        }
         renderItem={renderItem}
         pagingEnabled
         showsVerticalScrollIndicator={false}
