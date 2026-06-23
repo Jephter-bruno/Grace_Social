@@ -7,6 +7,7 @@ import { AvatarCircle } from '@/components/AvatarCircle';
 import { CommentsModal } from '@/components/CommentsModal';
 import { VersePickerModal } from '@/components/VersePickerModal';
 import { Prayer, useApp } from '@/context/AppContext';
+import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -28,6 +29,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 export function PrayerCard({ prayer }: { prayer: Prayer }) {
   const colors = useColors();
   const { togglePray, addPrayerComment } = useApp();
+  const { currentUser } = useAuth();
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [versePickerVisible, setVersePickerVisible] = useState(false);
   const [verseReactions, setVerseReactions] = useState<{ reference: string; text: string }[]>([]);
@@ -42,7 +44,10 @@ export function PrayerCard({ prayer }: { prayer: Prayer }) {
   const handleVerseSelect = (verse: { reference: string; text: string }) => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setVerseReactions((prev) => [...prev, verse]);
-    addPrayerComment(prayer.id, `📖 ${verse.reference}: "${verse.text}"`);
+    const userInfo = currentUser
+      ? { userName: currentUser.displayName || currentUser.name, userInitials: currentUser.initials, userColor: currentUser.color }
+      : undefined;
+    addPrayerComment(prayer.id, `📖 ${verse.reference}: "${verse.text}"`, userInfo);
   };
 
   return (

@@ -36,6 +36,8 @@ const AuthContext = createContext<AuthContextType | null>(null);
 const TOKEN_KEY = 'gracesocial_auth_token';
 
 function getApiBase(): string {
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+  if (apiUrl) return apiUrl;
   const domain = process.env.EXPO_PUBLIC_DOMAIN;
   if (domain) return `https://${domain}/api`;
   return 'http://localhost:3000/api';

@@ -92,10 +92,13 @@ export function CommentsModal({ visible, entityId, entityType, title, imageIndex
   const handleSubmit = () => {
     if (!text.trim()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    const userInfo = currentUser
+      ? { userName: currentUser.displayName || currentUser.name, userInitials: currentUser.initials, userColor: currentUser.color }
+      : undefined;
     if (entityType === 'post') {
-      addComment(entityId, text.trim());
+      addComment(entityId, text.trim(), userInfo);
     } else {
-      addPrayerComment(entityId, text.trim());
+      addPrayerComment(entityId, text.trim(), userInfo);
     }
     setText('');
   };

@@ -176,8 +176,8 @@ interface AppContextType {
   addPrayer: (prayer: Omit<Prayer, 'id'>) => void;
   addPost: (post: Omit<Post, 'id'>) => void;
   addReel: (reel: Omit<Reel, 'id'>) => void;
-  addComment: (postId: string, text: string) => void;
-  addPrayerComment: (prayerId: string, text: string) => void;
+  addComment: (postId: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => void;
+  addPrayerComment: (prayerId: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => void;
   toggleCommentLike: (postId: string, commentId: string) => void;
   togglePrayerCommentLike: (prayerId: string, commentId: string) => void;
   markAllRead: () => void;
@@ -544,14 +544,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setReels((prev) => [newReel, ...prev]);
   }, []);
 
-  const addComment = useCallback((postId: string, text: string) => {
-    const newComment: Comment = { id: Date.now().toString() + Math.random().toString(36).substr(2, 9), postId, userName: 'You', userInitials: 'ME', userColor: '#4A90A4', text, timestamp: 'just now', likes: 0, isLiked: false };
+  const addComment = useCallback((postId: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => {
+    const newComment: Comment = { id: Date.now().toString() + Math.random().toString(36).substr(2, 9), postId, userName: user?.userName ?? 'You', userInitials: user?.userInitials ?? 'ME', userColor: user?.userColor ?? '#4A90A4', text, timestamp: 'just now', likes: 0, isLiked: false };
     setCommentsByPost((prev) => ({ ...prev, [postId]: [newComment, ...(prev[postId] ?? [])] }));
     setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, comments: p.comments + 1 } : p)));
   }, []);
 
-  const addPrayerComment = useCallback((prayerId: string, text: string) => {
-    const newComment: Comment = { id: Date.now().toString() + Math.random().toString(36).substr(2, 9), postId: prayerId, userName: 'You', userInitials: 'ME', userColor: '#4A90A4', text, timestamp: 'just now', likes: 0, isLiked: false };
+  const addPrayerComment = useCallback((prayerId: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => {
+    const newComment: Comment = { id: Date.now().toString() + Math.random().toString(36).substr(2, 9), postId: prayerId, userName: user?.userName ?? 'You', userInitials: user?.userInitials ?? 'ME', userColor: user?.userColor ?? '#4A90A4', text, timestamp: 'just now', likes: 0, isLiked: false };
     setPrayerCommentsByPrayer((prev) => ({ ...prev, [prayerId]: [newComment, ...(prev[prayerId] ?? [])] }));
     setPrayers((prev) => prev.map((p) => (p.id === prayerId ? { ...p, comments: p.comments + 1 } : p)));
   }, []);

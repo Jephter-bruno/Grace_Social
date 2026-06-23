@@ -1,2 +1,3 @@
 - [Grace Social Auth Setup](grace-social-auth.md) — Real JWT auth with PostgreSQL; tables: gs_users, gs_sessions; bcryptjs for hashing (bcrypt is native/externalized).
-- [Grace Social Architecture](grace-social-arch.md) — Expo mobile app + Express API server + Drizzle ORM; auth token stored in AsyncStorage; API base URL from EXPO_PUBLIC_DOMAIN env var.
+- [Grace Social Architecture](grace-social-arch.md) — Expo mobile app + Express API server + Drizzle ORM; auth token stored in AsyncStorage; API base URL from EXPO_PUBLIC_API_URL env var.
+- [Grace Social Workflow Setup](grace-social-workflows.md) — Two workflows required; Expo web must hardcode port 5000 (not $PORT); API server on PORT=3000.

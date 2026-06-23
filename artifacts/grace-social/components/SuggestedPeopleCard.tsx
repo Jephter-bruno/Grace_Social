@@ -35,14 +35,21 @@ const ALL_SUGGESTIONS: SuggestedUser[] = [
 export function SuggestedPeopleCard() {
   const colors = useColors();
   const { followedHandles, toggleFollow, isFollowingUser } = useApp();
+  const [dismissed, setDismissed] = React.useState<Record<string, boolean>>({});
 
-  const suggestions = ALL_SUGGESTIONS.filter((u) => !followedHandles[u.handle]);
+  const suggestions = ALL_SUGGESTIONS.filter(
+    (u) => !followedHandles[u.handle] && !dismissed[u.handle]
+  );
 
   if (suggestions.length === 0) return null;
 
   const handleFollow = (user: SuggestedUser) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     toggleFollow(user.handle);
+  };
+
+  const handleDismiss = (user: SuggestedUser) => {
+    setDismissed((prev) => ({ ...prev, [user.handle]: true }));
   };
 
   const openProfile = (user: SuggestedUser) => {
@@ -62,7 +69,7 @@ export function SuggestedPeopleCard() {
     <View style={[styles.card, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
       <View style={styles.heading}>
         <Text style={[styles.headingText, { color: colors.foreground }]}>Suggested for You</Text>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => router.push('/search')}>
           <Text style={[styles.seeAll, { color: colors.accent }]}>See All</Text>
         </TouchableOpacity>
       </View>
@@ -84,7 +91,7 @@ export function SuggestedPeopleCard() {
               {/* Dismiss */}
               <TouchableOpacity
                 style={styles.dismissBtn}
-                onPress={() => {/* no-op — following removes from list */}}
+                onPress={() => handleDismiss(user)}
                 hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
               >
                 <Feather name="x" size={13} color={colors.mutedForeground} />
