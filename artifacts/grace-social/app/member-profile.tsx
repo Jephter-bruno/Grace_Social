@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import {
   Dimensions,
   FlatList,
@@ -29,6 +29,10 @@ const MEMBER_BIOS: Record<string, string> = {
   '@david_l': 'Testimony Tuesday host | Faith over fear\n"In all things God works for good." Rom 8:28',
   '@graceministry': 'Official Grace Community Church account\nEquipping believers to live out their faith 🙌',
   '@worshiphouse': 'Worship ministry at Grace Church 🎶\nHis mercies are new every morning.',
+  '@thomas_b': 'Walking by faith, not by sight ✝️\nMen\'s Brotherhood leader | Prayer warrior',
+  '@ruth_m': 'Intercessor | Prayer warrior 🙏\nStanding on the promises of God',
+  '@mary_k': 'His grace is sufficient for me 🕊️\nWomen\'s Fellowship member',
+  '@anna_p': 'Trusting His plan, one day at a time\n"For I know the plans I have for you." Jer 29:11',
 };
 
 const MEMBER_STATS: Record<string, { followers: number; following: number; posts: number }> = {
@@ -37,7 +41,14 @@ const MEMBER_STATS: Record<string, { followers: number; following: number; posts
   '@david_l': { followers: 703, following: 192, posts: 48 },
   '@graceministry': { followers: 2410, following: 89, posts: 132 },
   '@worshiphouse': { followers: 1120, following: 65, posts: 57 },
+  '@thomas_b': { followers: 289, following: 143, posts: 22 },
+  '@ruth_m': { followers: 416, following: 208, posts: 37 },
+  '@mary_k': { followers: 352, following: 181, posts: 29 },
+  '@anna_p': { followers: 178, following: 95, posts: 14 },
 };
+
+// Which handles were followed from the very start (seeded in AppContext)
+const INITIALLY_FOLLOWED = new Set(['@pastorjames', '@graceministry', '@sarahw']);
 
 export default function MemberProfileScreen() {
   const colors = useColors();
@@ -59,15 +70,31 @@ export default function MemberProfileScreen() {
   const bio = MEMBER_BIOS[handle] ?? 'Member of Grace Social community 🙏';
   const stats = MEMBER_STATS[handle] ?? { followers: 128, following: 74, posts: 12 };
 
-  const memberPosts = useMemo(
-    () => posts.filter((p) => p.userId === userId && p.imageIndex !== null),
-    [posts, userId]
-  );
+  // Track follow state at mount so we can accurately adjust the displayed count
+  const wasFollowingAtMount = useRef(isFollowingUser(handle)).current;
+  const wasInitiallyFollowed = INITIALLY_FOLLOWED.has(handle);
+
+  // Followers count logic:
+  // - If was seeded as followed: base = stats.followers (already counted)
+  //   → unfollowing = stats.followers - 1, re-following = stats.followers
+  // - If NOT seeded as followed: base = stats.followers (you not counted)
+  //   → following = stats.followers + 1, unfollowing = stats.followers
+  const displayedFollowers = (() => {
+    if (wasInitiallyFollowed) {
+      return isFollowing ? stats.followers : stats.followers - 1;
+    }
+    return isFollowing ? stats.followers + 1 : stats.followers;
+  })();
 
   const handleFollow = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     toggleFollow(handle);
   };
+
+  const memberPosts = useMemo(
+    () => posts.filter((p) => p.userId === userId && p.imageIndex !== null),
+    [posts, userId]
+  );
 
   const renderPost = ({ item }: { item: typeof memberPosts[0] }) => (
     <View style={styles.gridItem}>
@@ -89,14 +116,18 @@ export default function MemberProfileScreen() {
             <Text style={[styles.statNum, { color: colors.foreground }]}>{stats.posts}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Posts</Text>
           </View>
-          <View style={styles.statItem}>
-            <Text style={[styles.statNum, { color: colors.foreground }]}>{stats.followers.toLocaleString()}</Text>
+          <TouchableOpacity style={styles.statItem}>
+            <Text style={[styles.statNum, { color: colors.foreground }]}>
+              {displayedFollowers >= 1000
+                ? `${(displayedFollowers / 1000).toFixed(1)}K`
+                : displayedFollowers}
+            </Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Followers</Text>
-          </View>
-          <View style={styles.statItem}>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.statItem}>
             <Text style={[styles.statNum, { color: colors.foreground }]}>{stats.following}</Text>
             <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Following</Text>
-          </View>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -132,7 +163,7 @@ export default function MemberProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Divider */}
+      {/* Posts grid header */}
       {memberPosts.length > 0 && (
         <View style={[styles.postsHeader, { borderTopColor: colors.border, borderBottomColor: colors.border }]}>
           <Feather name="grid" size={16} color={colors.foreground} />
@@ -155,35 +186,26 @@ export default function MemberProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      {memberPosts.length > 0 ? (
-        <FlatList
-          data={memberPosts}
-          keyExtractor={(item) => item.id}
-          renderItem={renderPost}
-          numColumns={3}
-          columnWrapperStyle={styles.row}
-          ListHeaderComponent={ListHeader}
-          contentContainerStyle={{ paddingBottom: isWeb ? 24 : insets.bottom + 24 }}
-          showsVerticalScrollIndicator={false}
-        />
-      ) : (
-        <FlatList
-          data={[]}
-          keyExtractor={() => ''}
-          renderItem={null}
-          ListHeaderComponent={ListHeader}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Feather name="image" size={40} color={colors.mutedForeground} />
-              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No posts yet</Text>
-              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-                {name} hasn't shared any image posts yet.
-              </Text>
-            </View>
-          }
-          contentContainerStyle={{ paddingBottom: isWeb ? 24 : insets.bottom + 24 }}
-        />
-      )}
+      <FlatList
+        data={memberPosts}
+        keyExtractor={(item) => item.id}
+        renderItem={renderPost}
+        numColumns={memberPosts.length > 0 ? 3 : 1}
+        key={memberPosts.length > 0 ? 'grid' : 'list'}
+        columnWrapperStyle={memberPosts.length > 0 ? styles.row : undefined}
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={
+          <View style={styles.emptyState}>
+            <Feather name="image" size={40} color={colors.mutedForeground} />
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No posts yet</Text>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+              {name} hasn't shared any image posts yet.
+            </Text>
+          </View>
+        }
+        contentContainerStyle={{ paddingBottom: isWeb ? 24 : insets.bottom + 24 }}
+        showsVerticalScrollIndicator={false}
+      />
     </View>
   );
 }
@@ -215,7 +237,15 @@ const styles = StyleSheet.create({
   actionRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
   followBtn: { flex: 1, paddingVertical: 9, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   followBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  messageBtn: { flex: 1, paddingVertical: 9, borderRadius: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  messageBtn: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
   messageBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
 
   postsHeader: {

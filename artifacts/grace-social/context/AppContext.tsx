@@ -157,6 +157,7 @@ interface AppContextType {
   userProfile: UserProfile;
   pendingVerse: PendingVerse | null;
   followedHandles: Record<string, boolean>;
+  followingCount: number;
   isFollowingUser: (handle: string) => boolean;
   updateProfile: (updates: Partial<UserProfile>) => void;
   setPendingVerse: (verse: PendingVerse | null) => void;
@@ -634,8 +635,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setUserProfile((prev) => ({ ...prev, ...updates }));
   }, []);
 
+  const followingCount = Object.values(followedHandles).filter(Boolean).length;
+
   return (
-    <AppContext.Provider value={{ posts, stories, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, toggleReelSave, incrementReelShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, markStorySeen, addStory }}>
+    <AppContext.Provider value={{ posts, stories, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, toggleReelSave, incrementReelShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, markStorySeen, addStory }}>
       {children}
     </AppContext.Provider>
   );

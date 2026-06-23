@@ -17,6 +17,7 @@ import { DailyVerseCard } from '@/components/DailyVerseCard';
 import { NewPostModal } from '@/components/NewPostModal';
 import { PostCard } from '@/components/PostCard';
 import { StoryBar } from '@/components/StoryBar';
+import { SuggestedPeopleCard } from '@/components/SuggestedPeopleCard';
 import { Post, useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { useEffect } from 'react';
@@ -85,6 +86,7 @@ export default function HomeScreen() {
       <>
         <StoryBar stories={stories} />
         <DailyVerseCard />
+        <SuggestedPeopleCard />
       </>
     ),
     [stories]

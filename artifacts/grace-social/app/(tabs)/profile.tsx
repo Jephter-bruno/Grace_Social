@@ -173,7 +173,7 @@ function EmptyTab({ icon, message, sub, colors }: { icon: string; message: strin
 }
 
 export default function ProfileScreen() {
-  const { posts, reels } = useApp();
+  const { posts, reels, followingCount } = useApp();
   const { currentUser, logout } = useAuth();
   const colors = useColors();
   const { isDark, toggleDark } = useTheme();
@@ -191,7 +191,7 @@ export default function ProfileScreen() {
   const initials = currentUser?.initials || name.split(' ').map((p: string) => p[0]).join('').toUpperCase().slice(0, 2) || 'ME';
   const color = currentUser?.color || '#4A90A4';
   const followersCount = currentUser?.followersCount ?? 0;
-  const followingCount = currentUser?.followingCount ?? 0;
+  // followingCount comes from AppContext and reflects all local follows in real time
 
   const myPosts = useMemo(() => posts.filter((p) => p.userId === 'currentUser'), [posts]);
   const savedPosts = useMemo(() => posts.filter((p) => p.isSaved), [posts]);
