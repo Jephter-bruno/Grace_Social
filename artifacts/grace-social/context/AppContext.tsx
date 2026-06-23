@@ -75,11 +75,15 @@ export interface Reel {
   bibleVerse: string;
   likes: number;
   comments: number;
+  shares: number;
+  views: number;
   isLiked: boolean;
+  isSaved: boolean;
   imageIndex: number;
   videoUri?: string;
   duration: string;
   isFollowing: boolean;
+  audioName: string;
 }
 
 export interface Community {
@@ -164,6 +168,8 @@ interface AppContextType {
   toggleFollow: (reelId: string) => void;
   toggleJoin: (communityId: string) => void;
   toggleReelLike: (reelId: string) => void;
+  toggleReelSave: (reelId: string) => void;
+  incrementReelShares: (reelId: string) => void;
   addPrayer: (prayer: Omit<Prayer, 'id'>) => void;
   addPost: (post: Omit<Post, 'id'>) => void;
   addReel: (reel: Omit<Reel, 'id'>) => void;
@@ -421,11 +427,11 @@ const INITIAL_PRAYER_COMMENTS: Record<string, Comment[]> = {
 };
 
 const INITIAL_REELS: Reel[] = [
-  { id: 'r1', userName: 'Pastor James', userHandle: '@pastorjames', userInitials: 'PJ', userColor: '#D4A843', description: "Sunday message: Walking in God's grace. You are loved beyond measure.", bibleVerse: 'For by grace you have been saved through faith. — Ephesians 2:8', likes: 1240, comments: 89, isLiked: false, imageIndex: 0, videoUri: REEL_VIDEOS[0], duration: '2:45', isFollowing: true },
-  { id: 'r2', userName: 'Worship House', userHandle: '@worshiphouse', userInitials: 'WH', userColor: '#9B59B6', description: "Beautiful sunrise worship session this morning. His mercies are truly new every single morning.", bibleVerse: "Great is Thy faithfulness, O God my Father. — Lamentations 3:23", likes: 3560, comments: 234, isLiked: true, imageIndex: 1, videoUri: REEL_VIDEOS[1], duration: '1:58', isFollowing: false },
-  { id: 'r3', userName: 'Grace Ministry', userHandle: '@graceministry', userInitials: 'GM', userColor: '#F39C12', description: "Daily devotional: God's word is alive and active. Start your day in His presence.", bibleVerse: 'Your word is a lamp to my feet. — Psalm 119:105', likes: 892, comments: 56, isLiked: false, imageIndex: 2, videoUri: REEL_VIDEOS[2], duration: '3:12', isFollowing: true },
-  { id: 'r4', userName: 'David Livingston', userHandle: '@david_l', userInitials: 'DL', userColor: '#27AE60', description: "Testimony Tuesday: How God turned my darkest moment into my greatest testimony.", bibleVerse: 'And we know that in all things God works for good. — Romans 8:28', likes: 2100, comments: 178, isLiked: false, imageIndex: 0, videoUri: REEL_VIDEOS[3], duration: '4:30', isFollowing: false },
-  { id: 'r5', userName: 'Sarah Williams', userHandle: '@sarahw', userInitials: 'SW', userColor: '#9B59B6', description: "Morning prayer walk — bringing every burden to the Lord.", bibleVerse: 'Cast all your anxiety on him because he cares for you. — 1 Peter 5:7', likes: 1876, comments: 112, isLiked: false, imageIndex: 1, videoUri: REEL_VIDEOS[4], duration: '2:22', isFollowing: true },
+  { id: 'r1', userName: 'Pastor James', userHandle: '@pastorjames', userInitials: 'PJ', userColor: '#D4A843', description: "Sunday message: Walking in God's grace. You are loved beyond measure.", bibleVerse: 'For by grace you have been saved through faith. — Ephesians 2:8', likes: 1240, comments: 89, shares: 312, views: 18400, isLiked: false, isSaved: false, imageIndex: 0, videoUri: REEL_VIDEOS[0], duration: '2:45', isFollowing: true, audioName: 'Amazing Grace (Worship Cover)' },
+  { id: 'r2', userName: 'Worship House', userHandle: '@worshiphouse', userInitials: 'WH', userColor: '#9B59B6', description: "Beautiful sunrise worship session this morning. His mercies are truly new every single morning.", bibleVerse: "Great is Thy faithfulness, O God my Father. — Lamentations 3:23", likes: 3560, comments: 234, shares: 891, views: 54200, isLiked: true, isSaved: false, imageIndex: 1, videoUri: REEL_VIDEOS[1], duration: '1:58', isFollowing: false, audioName: 'Great is Thy Faithfulness · Worship House' },
+  { id: 'r3', userName: 'Grace Ministry', userHandle: '@graceministry', userInitials: 'GM', userColor: '#F39C12', description: "Daily devotional: God's word is alive and active. Start your day in His presence.", bibleVerse: 'Your word is a lamp to my feet. — Psalm 119:105', likes: 892, comments: 56, shares: 204, views: 12100, isLiked: false, isSaved: false, imageIndex: 2, videoUri: REEL_VIDEOS[2], duration: '3:12', isFollowing: true, audioName: 'Original audio · @graceministry' },
+  { id: 'r4', userName: 'David Livingston', userHandle: '@david_l', userInitials: 'DL', userColor: '#27AE60', description: "Testimony Tuesday: How God turned my darkest moment into my greatest testimony.", bibleVerse: 'And we know that in all things God works for good. — Romans 8:28', likes: 2100, comments: 178, shares: 567, views: 31700, isLiked: false, isSaved: false, imageIndex: 0, videoUri: REEL_VIDEOS[3], duration: '4:30', isFollowing: false, audioName: 'Original audio · @david_l' },
+  { id: 'r5', userName: 'Sarah Williams', userHandle: '@sarahw', userInitials: 'SW', userColor: '#9B59B6', description: "Morning prayer walk — bringing every burden to the Lord.", bibleVerse: 'Cast all your anxiety on him because he cares for you. — 1 Peter 5:7', likes: 1876, comments: 112, shares: 449, views: 27300, isLiked: false, isSaved: false, imageIndex: 1, videoUri: REEL_VIDEOS[4], duration: '2:22', isFollowing: true, audioName: 'Oceans (Where Feet May Fail) · Hillsong' },
 ];
 
 const INITIAL_COMMUNITIES: Community[] = [
@@ -486,6 +492,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const toggleReelLike = useCallback((reelId: string) => {
     setReels((prev) => prev.map((r) => r.id === reelId ? { ...r, isLiked: !r.isLiked, likes: r.isLiked ? r.likes - 1 : r.likes + 1 } : r));
+  }, []);
+
+  const toggleReelSave = useCallback((reelId: string) => {
+    setReels((prev) => prev.map((r) => r.id === reelId ? { ...r, isSaved: !r.isSaved } : r));
+  }, []);
+
+  const incrementReelShares = useCallback((reelId: string) => {
+    setReels((prev) => prev.map((r) => r.id === reelId ? { ...r, shares: r.shares + 1 } : r));
   }, []);
 
   const toggleFollow = useCallback((reelId: string) => {
@@ -603,7 +617,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AppContext.Provider value={{ posts, stories, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, markStorySeen, addStory }}>
+    <AppContext.Provider value={{ posts, stories, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, toggleReelSave, incrementReelShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, markStorySeen, addStory }}>
       {children}
     </AppContext.Provider>
   );

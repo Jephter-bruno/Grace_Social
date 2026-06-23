@@ -167,11 +167,15 @@ export function NewReelModal({ visible, onClose }: Props) {
         bibleVerse:   verseEnabled && verseRef.trim() ? `${verseRef} — "${verseText}"` : '',
         likes:        0,
         comments:     0,
+        shares:       0,
+        views:        0,
         isLiked:      false,
+        isSaved:      false,
         imageIndex:   selectedCategory,
         videoUri:     videoUri ?? undefined,
         duration:     videoDuration,
         isFollowing:  false,
+        audioName:    `Original audio · ${currentUser?.handle || '@gracemember'}`,
       });
       setStep('success');
       setTimeout(() => { reset(); onClose(); }, 2000);
