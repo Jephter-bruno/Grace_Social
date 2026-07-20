@@ -1,0 +1,31 @@
+Please redesign and fully implement the "Testimony" tab in Grace Social to make it visually engaging and fully interactive.
+
+### 1. UI & Visual Redesign ("Eye-Catching" & Modern)
+- Design an elegant, faith-focused testimony feed with clean typography, polished card containers, subtle borders/shadows, and smooth micro-animations.
+- **Testimony Card Layout**:
+  - Header: User avatar, display name, handle, and relative timestamp (e.g., "2h ago").
+  - Body: Highlighted testimony content with comfortable line-height and optional quote styling.
+  - Action Bar: Dedicated, clearly defined sections for **Like** (heart icon with count) and **Comment** (chat bubble icon with count), formatted cleanly side-by-side.
+
+### 2. Like System
+- Support toggling like/unlike on any testimony.
+- Implement immediate **Optimistic UI updates** (heart changes state and count increments/decrements right away).
+- Persist like states to the database so a user's liked status remains consistent upon refresh or re-login.
+
+### 3. Comment System
+- Allow users to tap on the comment section or icon to open a comment sheet/modal or expand the inline comments view.
+- Show a scrollable list of existing comments with commenter avatars, names, timestamps, and comment text.
+- Include a sleek input bar at the bottom to compose and submit new comments instantly.
+- Dynamically update the comment counter on the main testimony card when a comment is added.
+
+### 4. Backend & Database Integration
+- Ensure backend endpoints exist (or create them if missing) for:
+  - `GET /api/testimonies`
+  - `POST /api/testimonies/:id/like` (and toggle/unlike)
+  - `GET /api/testimonies/:id/comments`
+  - `POST /api/testimonies/:id/comments`
+- Verify database schemas/tables (`gs_testimonies`, `gs_likes`, `gs_comments`) exist and persist data across client sessions.
+
+### 5. Polish & User Experience
+- Add subtle tap animations on action icons.
+- Ensure proper loading skeletons while fetching testimonies/comments and clear error handling if network calls fail.

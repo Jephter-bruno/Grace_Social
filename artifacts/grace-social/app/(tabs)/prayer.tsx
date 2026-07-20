@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   FlatList,
   Platform,
   ScrollView,
@@ -16,8 +17,11 @@ import { router } from 'expo-router';
 import { AdCard } from '@/components/AdCard';
 import { NewPrayerModal } from '@/components/NewPrayerModal';
 import { PrayerCard } from '@/components/PrayerCard';
+import { TestimonyCard } from '@/components/TestimonyCard';
+import { TestimonyCommentSheet } from '@/components/TestimonyCommentSheet';
 import { Prayer, PrayerCategory, useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { Testimony, useTestimonies } from '@/hooks/useTestimonies';
 
 type FilterKey = 'all' | PrayerCategory;
 type TabKey = 'wall' | 'testimonies';
@@ -44,6 +48,8 @@ export default function PrayerScreen() {
   const [active, setActive] = useState<FilterKey>('all');
   const [tab, setTab] = useState<TabKey>('wall');
   const [showModal, setShowModal] = useState(false);
+  const [commentTestimony, setCommentTestimony] = useState<Testimony | null>(null);
+  const { testimonies, loading: testimonyLoading, error: testimonyError, toggleLike } = useTestimonies();
 
   const filtered = useMemo(
     () => (active === 'all' ? prayers : prayers.filter((p) => p.category === active)),
@@ -161,34 +167,75 @@ export default function PrayerScreen() {
   if (tab === 'testimonies') {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <View
-          style={[
-            styles.header,
-            {
-              paddingTop: (isWeb ? 67 : insets.top) + 8,
-              backgroundColor: colors.background,
-            },
-          ]}
+        <FlatList
+          data={testimonies}
+          keyExtractor={(t) => String(t.id)}
+          renderItem={({ item }) => (
+            <TestimonyCard
+              testimony={item}
+              onLike={toggleLike}
+              onComment={setCommentTestimony}
+            />
+          )}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: isWeb ? 34 : 100 }}
+          ListHeaderComponent={
+            <View>
+              <View
+                style={[
+                  styles.header,
+                  { paddingTop: (isWeb ? 67 : insets.top) + 8, backgroundColor: colors.background },
+                ]}
+              >
+                <Text style={[styles.title, { color: colors.foreground }]}>Prayer</Text>
+                <TouchableOpacity
+                  style={[styles.circlesBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  onPress={() => router.push('/prayer-groups')}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.circlesBtnText}>🔥  My Circles</Text>
+                </TouchableOpacity>
+              </View>
+              {ListHeader}
+            </View>
+          }
+          ListEmptyComponent={
+            testimonyLoading ? (
+              <View style={styles.emptyState}>
+                <ActivityIndicator size="large" color={CORAL} />
+              </View>
+            ) : testimonyError ? (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyIcon}>⚠️</Text>
+                <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Could not load testimonies</Text>
+                <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>{testimonyError}</Text>
+              </View>
+            ) : (
+              <View style={styles.emptyState}>
+                <Text style={styles.emptyIcon}>✨</Text>
+                <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No testimonies yet</Text>
+                <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>
+                  Share how God has moved in your life
+                </Text>
+              </View>
+            )
+          }
+        />
+
+        {/* FAB to share testimony */}
+        <TouchableOpacity
+          style={[styles.fab, { backgroundColor: CORAL, bottom: (isWeb ? 34 : insets.bottom) + 70 }]}
+          onPress={() => {}}
+          activeOpacity={0.85}
         >
-          <Text style={[styles.title, { color: colors.foreground }]}>Prayer</Text>
-          <TouchableOpacity
-            style={[styles.circlesBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => router.push('/prayer-groups')}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.circlesBtnText}>🔥  My Circles</Text>
-          </TouchableOpacity>
-        </View>
+          <Feather name="plus" size={24} color="#fff" />
+        </TouchableOpacity>
 
-        {ListHeader}
-
-        <View style={styles.emptyState}>
-          <Text style={[styles.emptyIcon]}>✨</Text>
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Testimonies coming soon</Text>
-          <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>
-            Share how God has moved in your life
-          </Text>
-        </View>
+        <TestimonyCommentSheet
+          testimony={commentTestimony}
+          visible={!!commentTestimony}
+          onClose={() => setCommentTestimony(null)}
+        />
       </View>
     );
   }
