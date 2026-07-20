@@ -45,7 +45,7 @@ const INITIAL_CIRCLES: PrayerCircle[] = [
     groupPrayerList: [
       "Healing for Sarah's mom",
       "Strength for James's job search",
-      'Peace over Mark's family situation',
+      "Peace over Mark's family situation",
     ],
     members: [
       { id: 'm0', displayName: 'You',        initials: 'Y',  color: '#4A90A4', streakDays: 14, prayedToday: false, isYou: true },

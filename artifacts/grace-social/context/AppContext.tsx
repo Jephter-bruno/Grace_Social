@@ -96,6 +96,7 @@ export interface Community {
   iconName: string;
   color: string;
   isJoined: boolean;
+  imageUrl?: string;
 }
 
 export type NotificationType =
@@ -439,12 +440,12 @@ const INITIAL_REELS: Reel[] = [
 ];
 
 const INITIAL_COMMUNITIES: Community[] = [
-  { id: 'c1', name: 'Youth Group', description: 'A community for young believers aged 13-25 to grow in faith together with purpose.', members: 247, category: 'Youth', iconName: 'zap', color: '#FF6B35', isJoined: true },
-  { id: 'c2', name: 'Worship Team', description: 'Musicians, singers, and worship leaders who serve through music ministry.', members: 89, category: 'Ministry', iconName: 'music', color: '#9B59B6', isJoined: false },
-  { id: 'c3', name: 'Bible Study', description: "Weekly deep dives into Scripture. All levels welcome.", members: 312, category: 'Study', iconName: 'book-open', color: '#27AE60', isJoined: true },
-  { id: 'c4', name: "Women's Fellowship", description: 'A safe, uplifting space for women to connect, pray, and encourage one another.', members: 186, category: 'Fellowship', iconName: 'heart', color: '#E91E8C', isJoined: false },
-  { id: 'c5', name: "Men's Brotherhood", description: 'Men doing life together — accountability, real faith, and brotherly love.', members: 143, category: 'Fellowship', iconName: 'shield', color: '#2980B9', isJoined: false },
-  { id: 'c6', name: 'Prayer Warriors', description: 'Dedicated intercessors committed to praying for the church, community, and world.', members: 204, category: 'Prayer', iconName: 'sun', color: '#F39C12', isJoined: true },
+  { id: 'c1', name: 'Youth Group', description: 'A community for young believers aged 13-25 to grow in faith together with purpose.', members: 247, category: 'Youth', iconName: 'zap', color: '#FF6B35', isJoined: true, imageUrl: 'https://picsum.photos/seed/gc-youth/600/300' },
+  { id: 'c2', name: 'Worship Team', description: 'Musicians, singers, and worship leaders who serve through music ministry.', members: 89, category: 'Ministry', iconName: 'music', color: '#9B59B6', isJoined: false, imageUrl: 'https://picsum.photos/seed/gc-worship/600/300' },
+  { id: 'c3', name: 'Bible Study', description: "Weekly deep dives into Scripture. All levels welcome.", members: 312, category: 'Study', iconName: 'book-open', color: '#27AE60', isJoined: true, imageUrl: 'https://picsum.photos/seed/gc-bible/600/300' },
+  { id: 'c4', name: "Women's Fellowship", description: 'A safe, uplifting space for women to connect, pray, and encourage one another.', members: 186, category: 'Fellowship', iconName: 'heart', color: '#E91E8C', isJoined: false, imageUrl: 'https://picsum.photos/seed/gc-women/600/300' },
+  { id: 'c5', name: "Men's Brotherhood", description: 'Men doing life together — accountability, real faith, and brotherly love.', members: 143, category: 'Fellowship', iconName: 'shield', color: '#2980B9', isJoined: false, imageUrl: 'https://picsum.photos/seed/gc-men/600/300' },
+  { id: 'c6', name: 'Prayer Warriors', description: 'Dedicated intercessors committed to praying for the church, community, and world.', members: 204, category: 'Prayer', iconName: 'sun', color: '#F39C12', isJoined: true, imageUrl: 'https://picsum.photos/seed/gc-prayer/600/300' },
 ];
 
 const NOW = Date.now();
