@@ -1,14 +1,17 @@
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
-import React, { useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  Animated,
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -21,12 +24,17 @@ import { useAuth } from '@/context/AuthContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type MediaType = 'image' | 'video' | 'audio';
+
 interface Message {
   id: string;
   text: string;
   fromMe: boolean;
   time: string;
-  replyTo?: string; // original message text this is a reply to
+  replyTo?: string;
+  mediaType?: MediaType;
+  mediaUri?: string;
+  audioDuration?: number; // seconds recorded
 }
 
 interface Conversation {
@@ -56,11 +64,15 @@ const INITIAL_CONVERSATIONS: Conversation[] = [
     time: '9:32 AM',
     unread: 2,
     messages: [
-      { id: 'm1', text: 'Hello, how are you doing today?', fromMe: false, time: '9:20 AM' },
-      { id: 'm2', text: 'Doing great, thank you Pastor!', fromMe: true, time: '9:25 AM' },
-      { id: 'm3', text: 'Praise the Lord! Keep the faith strong 🙏', fromMe: false, time: '9:28 AM' },
-      { id: 'm4', text: 'Always do!', fromMe: true, time: '9:30 AM', replyTo: 'Praise the Lord! Keep the faith strong 🙏' },
-      { id: 'm5', text: 'Blessings! See you Sunday 🙏', fromMe: false, time: '9:32 AM' },
+      { id: 'm1', text: "Hello! Sharing this week's sermon photo 📸", fromMe: false, time: '9:15 AM' },
+      { id: 'm2', text: '', fromMe: false, time: '9:16 AM', mediaType: 'image', mediaUri: 'https://picsum.photos/seed/sermon/400/300' },
+      { id: 'm3', text: 'Wow that looks amazing!', fromMe: true, time: '9:20 AM', replyTo: 'Hello! Sharing this week\'s sermon photo 📸' },
+      { id: 'm4', text: 'Here is a short clip from service 🎥', fromMe: false, time: '9:22 AM' },
+      { id: 'm5', text: '', fromMe: false, time: '9:23 AM', mediaType: 'video', mediaUri: 'https://picsum.photos/seed/church/400/300' },
+      { id: 'm6', text: 'Doing great, thank you Pastor!', fromMe: true, time: '9:25 AM' },
+      { id: 'm7', text: 'Praise the Lord! Keep the faith strong 🙏', fromMe: false, time: '9:28 AM' },
+      { id: 'm8', text: 'Always do!', fromMe: true, time: '9:30 AM', replyTo: 'Praise the Lord! Keep the faith strong 🙏' },
+      { id: 'm9', text: 'Blessings! See you Sunday 🙏', fromMe: false, time: '9:32 AM' },
     ],
   },
   {
@@ -121,46 +133,381 @@ const C = {
   surface: '#1A1A1A',
   inputBg: '#1C1C1E',
   border: '#2A2A2A',
-  sentBubble: '#9B30E8',     // purple (Messenger-style)
-  recvBubble: '#2C2C2E',     // dark grey
-  replyBg: '#1E1E20',        // darker quote bubble
+  sentBubble: '#9B30E8',
+  recvBubble: '#2C2C2E',
+  replyBg: '#1E1E20',
   text: '#FFFFFF',
   sub: '#8E8E93',
   placeholder: '#636366',
   headerIcon: '#EBEBF5',
   cameraBtn: '#3A8DFF',
+  recordRed: '#FF3B30',
 };
+
+function fmtDuration(secs: number) {
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+// ─── Audio-bubble player ──────────────────────────────────────────────────────
+
+function AudioBubble({ uri, duration, fromMe }: { uri: string; duration: number; fromMe: boolean }) {
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [pos, setPos] = useState(0); // 0-1 progress
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const load = useCallback(async () => {
+    const { sound: s } = await Audio.Sound.createAsync({ uri }, { shouldPlay: false });
+    s.setOnPlaybackStatusUpdate((st) => {
+      if (!st.isLoaded) return;
+      if (st.didJustFinish) {
+        setPlaying(false);
+        setPos(0);
+        if (intervalRef.current) clearInterval(intervalRef.current);
+      }
+    });
+    setSound(s);
+    return s;
+  }, [uri]);
+
+  const togglePlay = async () => {
+    try {
+      let s = sound;
+      if (!s) s = await load();
+      if (playing) {
+        await s.pauseAsync();
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        setPlaying(false);
+      } else {
+        await s.playAsync();
+        setPlaying(true);
+        intervalRef.current = setInterval(async () => {
+          const st = await s!.getStatusAsync();
+          if (st.isLoaded && st.durationMillis) {
+            setPos(st.positionMillis / st.durationMillis);
+          }
+        }, 200);
+      }
+    } catch {
+      Alert.alert('Playback error', 'Could not play audio.');
+    }
+  };
+
+  useEffect(() => () => { sound?.unloadAsync(); }, [sound]);
+
+  const accentColor = fromMe ? 'rgba(255,255,255,0.9)' : C.sentBubble;
+  const trackColor = fromMe ? 'rgba(255,255,255,0.3)' : C.border;
+
+  return (
+    <View style={audioBubbleStyles.row}>
+      <TouchableOpacity onPress={togglePlay} style={[audioBubbleStyles.playBtn, { backgroundColor: accentColor }]}>
+        <Feather name={playing ? 'pause' : 'play'} size={14} color={fromMe ? C.sentBubble : '#fff'} />
+      </TouchableOpacity>
+      <View style={audioBubbleStyles.trackArea}>
+        {/* Waveform bars */}
+        <View style={audioBubbleStyles.waveform}>
+          {[3, 8, 5, 12, 7, 10, 4, 9, 6, 11, 5, 8, 3, 10, 7, 6, 9, 4, 11, 8].map((h, i) => (
+            <View
+              key={i}
+              style={[
+                audioBubbleStyles.bar,
+                {
+                  height: h * 1.5,
+                  backgroundColor:
+                    pos > i / 20
+                      ? (fromMe ? '#fff' : C.sentBubble)
+                      : (fromMe ? 'rgba(255,255,255,0.35)' : C.sub),
+                },
+              ]}
+            />
+          ))}
+        </View>
+        {/* Progress track */}
+        <View style={[audioBubbleStyles.track, { backgroundColor: trackColor }]}>
+          <View style={[audioBubbleStyles.trackFill, { width: `${pos * 100}%` as any, backgroundColor: accentColor }]} />
+        </View>
+      </View>
+      <Text style={[audioBubbleStyles.dur, { color: fromMe ? 'rgba(255,255,255,0.7)' : C.sub }]}>
+        {fmtDuration(duration)}
+      </Text>
+    </View>
+  );
+}
+
+const audioBubbleStyles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 180 },
+  playBtn: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  trackArea: { flex: 1, gap: 3 },
+  waveform: { flexDirection: 'row', alignItems: 'center', gap: 2, height: 20 },
+  bar: { width: 3, borderRadius: 2 },
+  track: { height: 3, borderRadius: 2, overflow: 'hidden' },
+  trackFill: { height: '100%', borderRadius: 2 },
+  dur: { fontSize: 11, minWidth: 32, textAlign: 'right' },
+});
+
+// ─── Image / Video bubble ─────────────────────────────────────────────────────
+
+function MediaBubble({ uri, type, fromMe }: { uri: string; type: 'image' | 'video'; fromMe: boolean }) {
+  return (
+    <View style={mediaBubbleStyles.wrap}>
+      <Image
+        source={{ uri }}
+        style={mediaBubbleStyles.img}
+        contentFit="cover"
+        transition={200}
+      />
+      {type === 'video' && (
+        <View style={mediaBubbleStyles.overlay}>
+          <View style={mediaBubbleStyles.playCircle}>
+            <Feather name="play" size={20} color="#fff" style={{ marginLeft: 3 }} />
+          </View>
+          <View style={mediaBubbleStyles.videoBadge}>
+            <Feather name="video" size={11} color="#fff" />
+            <Text style={mediaBubbleStyles.videoBadgeText}>Video</Text>
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const mediaBubbleStyles = StyleSheet.create({
+  wrap: { width: 220, height: 160, borderRadius: 12, overflow: 'hidden', position: 'relative' },
+  img: { width: '100%', height: '100%' },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+  },
+  playCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  videoBadge: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  videoBadgeText: { color: '#fff', fontSize: 11, fontWeight: '600' },
+});
+
+// ─── Recording indicator ──────────────────────────────────────────────────────
+
+function RecordingBar({ duration, onStop }: { duration: number; onStop: () => void }) {
+  const pulse = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const anim = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1.25, duration: 600, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+      ])
+    );
+    anim.start();
+    return () => anim.stop();
+  }, [pulse]);
+
+  return (
+    <View style={recStyles.bar}>
+      <Animated.View style={[recStyles.dot, { transform: [{ scale: pulse }] }]} />
+      <Text style={recStyles.label}>Recording  {fmtDuration(duration)}</Text>
+      <TouchableOpacity onPress={onStop} style={recStyles.stopBtn}>
+        <Feather name="square" size={14} color="#fff" />
+        <Text style={recStyles.stopText}>Stop</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const recStyles = StyleSheet.create({
+  bar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#1C1C1E',
+    marginHorizontal: 10,
+    marginBottom: 6,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  dot: { width: 10, height: 10, borderRadius: 5, backgroundColor: C.recordRed },
+  label: { flex: 1, color: '#fff', fontSize: 14, fontWeight: '500' },
+  stopBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: C.recordRed,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  stopText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+});
 
 // ─── Conversation view ────────────────────────────────────────────────────────
 
-function ConversationView({
-  conv,
-  onBack,
-}: {
-  conv: Conversation;
-  onBack: () => void;
-}) {
+function ConversationView({ conv, onBack }: { conv: Conversation; onBack: () => void }) {
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
   const topPad = isWeb ? 56 : insets.top;
   const botPad = isWeb ? 16 : insets.bottom;
-  const { currentUser } = useAuth();
 
   const [messages, setMessages] = useState<Message[]>(conv.messages);
   const [text, setText] = useState('');
+  const [isRecording, setIsRecording] = useState(false);
+  const [recDuration, setRecDuration] = useState(0);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const listRef = useRef<FlatList>(null);
 
-  const send = () => {
+  const scrollToEnd = (animated = true) =>
+    setTimeout(() => listRef.current?.scrollToEnd({ animated }), 80);
+
+  const appendMessage = (msg: Message) => {
+    setMessages((prev) => [...prev, msg]);
+    scrollToEnd();
+  };
+
+  // ── Send text ──
+  const sendText = () => {
     const t = text.trim();
     if (!t) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setMessages((prev) => [
-      ...prev,
-      { id: Date.now().toString(), text: t, fromMe: true, time: 'Now' },
-    ]);
+    appendMessage({ id: Date.now().toString(), text: t, fromMe: true, time: 'Now' });
     setText('');
-    setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 80);
   };
+
+  // ── Pick image ──
+  const pickImage = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Please allow access to your photos.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'images',
+        quality: 0.8,
+        allowsEditing: false,
+      });
+      if (!result.canceled && result.assets.length > 0) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        appendMessage({
+          id: Date.now().toString(),
+          text: '',
+          fromMe: true,
+          time: 'Now',
+          mediaType: 'image',
+          mediaUri: result.assets[0].uri,
+        });
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not pick image.');
+    }
+  };
+
+  // ── Pick video ──
+  const pickVideo = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Please allow access to your gallery.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'videos',
+        quality: 0.8,
+        allowsEditing: false,
+        videoMaxDuration: 120,
+      });
+      if (!result.canceled && result.assets.length > 0) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        const asset = result.assets[0];
+        appendMessage({
+          id: Date.now().toString(),
+          text: '',
+          fromMe: true,
+          time: 'Now',
+          mediaType: 'video',
+          // use thumbnail if available, else the uri itself as fallback image
+          mediaUri: (asset as any).thumbnail ?? asset.uri,
+        });
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not pick video.');
+    }
+  };
+
+  // ── Audio recording ──
+  const startRecording = async () => {
+    try {
+      const perm = await Audio.requestPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission needed', 'Please allow microphone access.');
+        return;
+      }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      recordingRef.current = recording;
+      setIsRecording(true);
+      setRecDuration(0);
+      recTimerRef.current = setInterval(() => setRecDuration((d) => d + 1), 1000);
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    } catch (e) {
+      Alert.alert('Error', 'Could not start recording.');
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!recordingRef.current) return;
+    try {
+      if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+      await recordingRef.current.stopAndUnloadAsync();
+      const uri = recordingRef.current.getURI();
+      const duration = recDuration;
+      recordingRef.current = null;
+      setIsRecording(false);
+      setRecDuration(0);
+      if (uri && duration > 0) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        appendMessage({
+          id: Date.now().toString(),
+          text: '',
+          fromMe: true,
+          time: 'Now',
+          mediaType: 'audio',
+          mediaUri: uri,
+          audioDuration: duration,
+        });
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not save recording.');
+    }
+  };
+
+  // cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (recTimerRef.current) clearInterval(recTimerRef.current);
+      recordingRef.current?.stopAndUnloadAsync().catch(() => {});
+    };
+  }, []);
 
   return (
     <KeyboardAvoidingView
@@ -210,15 +557,15 @@ function ConversationView({
         showsVerticalScrollIndicator={false}
         onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
         renderItem={({ item, index }) => {
-          const prevItem = messages[index - 1];
           const showAvatar = !item.fromMe && (index === 0 || messages[index - 1]?.fromMe);
-          const clusterFirst = !item.fromMe && (index === 0 || prevItem?.fromMe);
           const clusterLast =
             item.fromMe || index === messages.length - 1 || messages[index + 1]?.fromMe;
+          const isMedia = item.mediaType === 'image' || item.mediaType === 'video';
+          const isAudio = item.mediaType === 'audio';
 
           return (
             <View style={{ marginBottom: clusterLast ? 6 : 2 }}>
-              {/* Reply thread */}
+              {/* Reply quote */}
               {item.replyTo && item.fromMe && (
                 <View style={styles.replyThread}>
                   <Text style={styles.replyLabel}>You replied</Text>
@@ -229,7 +576,7 @@ function ConversationView({
               )}
 
               <View style={[styles.msgRow, item.fromMe ? styles.msgRowRight : styles.msgRowLeft]}>
-                {/* Avatar placeholder column (keeps alignment) */}
+                {/* Left avatar column */}
                 {!item.fromMe && (
                   <View style={styles.senderAvatarCol}>
                     {showAvatar ? (
@@ -246,32 +593,51 @@ function ConversationView({
                   </View>
                 )}
 
-                <View
-                  style={[
+                {/* Bubble content */}
+                {isMedia && item.mediaUri ? (
+                  // image/video has no bubble wrapper — raw media card
+                  <MediaBubble uri={item.mediaUri} type={item.mediaType as 'image' | 'video'} fromMe={item.fromMe} />
+                ) : isAudio && item.mediaUri ? (
+                  <View style={[
                     styles.bubble,
                     item.fromMe
                       ? [styles.bubbleSent, { borderBottomRightRadius: clusterLast ? 4 : 18 }]
                       : [styles.bubbleRecv, { borderBottomLeftRadius: clusterLast ? 4 : 18 }],
-                  ]}
-                >
-                  <Text style={[styles.bubbleText, { color: item.fromMe ? '#fff' : C.text }]}>
-                    {item.text}
-                  </Text>
-                </View>
+                  ]}>
+                    <AudioBubble uri={item.mediaUri} duration={item.audioDuration ?? 0} fromMe={item.fromMe} />
+                  </View>
+                ) : (
+                  <View style={[
+                    styles.bubble,
+                    item.fromMe
+                      ? [styles.bubbleSent, { borderBottomRightRadius: clusterLast ? 4 : 18 }]
+                      : [styles.bubbleRecv, { borderBottomLeftRadius: clusterLast ? 4 : 18 }],
+                  ]}>
+                    <Text style={[styles.bubbleText, { color: item.fromMe ? '#fff' : C.text }]}>
+                      {item.text}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
           );
         }}
       />
 
+      {/* ── Recording indicator ── */}
+      {isRecording && <RecordingBar duration={recDuration} onStop={stopRecording} />}
+
       {/* ── Input toolbar ── */}
       <View style={[styles.toolbar, { paddingBottom: botPad + 8 }]}>
-        {/* Camera button */}
-        <TouchableOpacity style={[styles.cameraBtn, { backgroundColor: C.cameraBtn }]}>
+        {/* Camera / gallery quick-launch */}
+        <TouchableOpacity
+          style={[styles.cameraBtn, { backgroundColor: C.cameraBtn }]}
+          onPress={pickImage}
+        >
           <Ionicons name="camera" size={20} color="#fff" />
         </TouchableOpacity>
 
-        {/* Message input */}
+        {/* Message input pill */}
         <View style={styles.inputWrap}>
           <TextInput
             style={styles.input}
@@ -283,26 +649,39 @@ function ConversationView({
             maxLength={1000}
             returnKeyType="default"
           />
-          {/* Toolbar icons inside / beside input */}
           <View style={styles.inputIcons}>
-            <TouchableOpacity hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-              <Feather name="mic" size={20} color={C.sub} />
+            {/* Mic — tap to start/stop recording */}
+            <TouchableOpacity
+              onPress={isRecording ? stopRecording : startRecording}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Feather
+                name="mic"
+                size={20}
+                color={isRecording ? C.recordRed : C.sub}
+              />
             </TouchableOpacity>
-            <TouchableOpacity hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+
+            {/* Image picker */}
+            <TouchableOpacity onPress={pickImage} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
               <Feather name="image" size={20} color={C.sub} />
             </TouchableOpacity>
-            <TouchableOpacity hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-              <MaterialCommunityIcons name="sticker-emoji" size={20} color={C.sub} />
+
+            {/* Video picker */}
+            <TouchableOpacity onPress={pickVideo} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+              <Feather name="video" size={20} color={C.sub} />
             </TouchableOpacity>
+
+            {/* Send / sticker / plus */}
             {text.trim() ? (
-              <TouchableOpacity onPress={send} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
+              <TouchableOpacity onPress={sendText} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
                 <View style={styles.sendCircle}>
                   <Feather name="send" size={15} color="#fff" />
                 </View>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                <Feather name="plus-circle" size={22} color={C.sub} />
+                <MaterialCommunityIcons name="sticker-emoji" size={21} color={C.sub} />
               </TouchableOpacity>
             )}
           </View>
@@ -333,12 +712,7 @@ export default function MessagesScreen() {
   };
 
   if (activeConv) {
-    return (
-      <ConversationView
-        conv={activeConv}
-        onBack={() => setActiveConv(null)}
-      />
-    );
+    return <ConversationView conv={activeConv} onBack={() => setActiveConv(null)} />;
   }
 
   const filteredConvs = search.trim()
@@ -468,7 +842,6 @@ export default function MessagesScreen() {
             onPress={() => openConversation(item)}
             activeOpacity={0.75}
           >
-            {/* Avatar */}
             <View style={styles.convAvatarWrap}>
               {item.avatarUrl ? (
                 <Image source={{ uri: item.avatarUrl }} style={styles.convAvatar} contentFit="cover" />
@@ -477,7 +850,6 @@ export default function MessagesScreen() {
                   <Text style={styles.convAvatarText}>{item.userInitials}</Text>
                 </View>
               )}
-              {/* Online dot */}
               {item.status === 'Active now' && <View style={styles.onlineDot} />}
               {item.unread > 0 && (
                 <View style={[styles.unreadBadge, { backgroundColor: C.sentBubble }]}>
@@ -485,8 +857,6 @@ export default function MessagesScreen() {
                 </View>
               )}
             </View>
-
-            {/* Body */}
             <View style={styles.convBody}>
               <Text style={styles.convName}>{item.userName}</Text>
               <Text
@@ -499,15 +869,11 @@ export default function MessagesScreen() {
                 {item.lastMessage || 'Say hello 👋'}
               </Text>
             </View>
-
-            {/* Time */}
             <View style={styles.convRight}>
               <Text style={[styles.convTime, { color: item.unread > 0 ? C.sentBubble : C.sub }]}>
                 {item.time}
               </Text>
-              {item.unread > 0 && (
-                <View style={[styles.unreadDot, { backgroundColor: C.sentBubble }]} />
-              )}
+              {item.unread > 0 && <View style={[styles.unreadDot, { backgroundColor: C.sentBubble }]} />}
             </View>
           </TouchableOpacity>
         )}
@@ -530,16 +896,12 @@ export default function MessagesScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  // ── Conversation view
+  // Conversation view
   cvRoot: { flex: 1 },
   cvHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingBottom: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#2A2A2A',
-    backgroundColor: '#0D0D0D',
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10,
+    paddingBottom: 10, borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#2A2A2A', backgroundColor: '#0D0D0D',
   },
   cvBack: { padding: 6 },
   cvHeaderCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', marginLeft: 6, gap: 10 },
@@ -552,7 +914,7 @@ const styles = StyleSheet.create({
   cvHeaderActions: { flexDirection: 'row', gap: 4 },
   cvActionBtn: { padding: 8 },
 
-  // ── Bubbles
+  // Bubbles
   msgRow: { flexDirection: 'row', alignItems: 'flex-end', marginVertical: 1 },
   msgRowLeft: { justifyContent: 'flex-start' },
   msgRowRight: { justifyContent: 'flex-end' },
@@ -566,123 +928,49 @@ const styles = StyleSheet.create({
   bubbleRecv: { backgroundColor: '#2C2C2E', borderBottomLeftRadius: 4 },
   bubbleText: { fontSize: 15, lineHeight: 21 },
 
-  // ── Reply thread
+  // Reply thread
   replyThread: { alignItems: 'flex-end', marginBottom: 3, marginRight: 4 },
   replyLabel: { color: '#636366', fontSize: 11, marginBottom: 3 },
-  replyQuote: {
-    backgroundColor: '#1E1E20',
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    maxWidth: '65%',
-  },
+  replyQuote: { backgroundColor: '#1E1E20', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6, maxWidth: '65%' },
   replyQuoteText: { color: '#8E8E93', fontSize: 13 },
 
-  // ── Toolbar
+  // Toolbar
   toolbar: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 10,
-    paddingTop: 8,
-    gap: 8,
-    backgroundColor: '#0D0D0D',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#2A2A2A',
+    flexDirection: 'row', alignItems: 'flex-end', paddingHorizontal: 10,
+    paddingTop: 8, gap: 8, backgroundColor: '#0D0D0D',
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: '#2A2A2A',
   },
-  cameraBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  cameraBtn: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   inputWrap: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    backgroundColor: '#1C1C1E',
-    borderRadius: 24,
-    paddingLeft: 14,
-    paddingRight: 8,
-    paddingVertical: 6,
-    minHeight: 40,
+    flex: 1, flexDirection: 'row', alignItems: 'flex-end',
+    backgroundColor: '#1C1C1E', borderRadius: 24,
+    paddingLeft: 14, paddingRight: 8, paddingVertical: 6, minHeight: 40,
   },
-  input: {
-    flex: 1,
-    color: '#fff',
-    fontSize: 15,
-    maxHeight: 110,
-    paddingTop: 4,
-    paddingBottom: 4,
-  },
-  inputIcons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingBottom: 2,
-    marginLeft: 6,
-  },
+  input: { flex: 1, color: '#fff', fontSize: 15, maxHeight: 110, paddingTop: 4, paddingBottom: 4 },
+  inputIcons: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingBottom: 2, marginLeft: 6 },
   sendCircle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#9B30E8',
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 30, height: 30, borderRadius: 15,
+    backgroundColor: '#9B30E8', alignItems: 'center', justifyContent: 'center',
   },
 
-  // ── List view
+  // List view
   listRoot: { flex: 1 },
   listHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#2A2A2A',
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16,
+    paddingBottom: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#2A2A2A',
   },
   listBack: { padding: 4 },
   listTitle: { color: '#fff', fontSize: 20, fontWeight: '700' },
   listUnread: { fontSize: 12, marginTop: 1 },
-  newBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-  },
+  newBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7 },
   newBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 14,
-    marginVertical: 10,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-    gap: 8,
-  },
+  searchBar: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 14, marginVertical: 10, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, gap: 8 },
   searchInput: { flex: 1, color: '#fff', fontSize: 15 },
 
-  // ── New conversation form
-  newConvCard: {
-    marginHorizontal: 14,
-    marginBottom: 8,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 14,
-    gap: 10,
-  },
+  // New conv form
+  newConvCard: { marginHorizontal: 14, marginBottom: 8, borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, padding: 14, gap: 10 },
   newConvTitle: { color: '#fff', fontSize: 15, fontWeight: '700' },
-  newConvRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 9,
-  },
+  newConvRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9 },
   newConvInput: { flex: 1, color: '#fff', fontSize: 15 },
   newConvBtns: { flexDirection: 'row', gap: 10, justifyContent: 'flex-end' },
   newConvCancel: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8, borderWidth: 1 },
@@ -690,49 +978,14 @@ const styles = StyleSheet.create({
   newConvStart: { borderRadius: 20, paddingHorizontal: 16, paddingVertical: 8 },
   newConvStartTxt: { fontSize: 14, fontWeight: '600' },
 
-  // ── Conversation rows
-  convRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
+  // Conv rows
+  convRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth },
   convAvatarWrap: { position: 'relative' },
   convAvatar: { width: 54, height: 54, borderRadius: 27 },
-  convAvatarFallback: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  convAvatarFallback: { width: 54, height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center' },
   convAvatarText: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  onlineDot: {
-    position: 'absolute',
-    bottom: 2,
-    right: 2,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#31C48D',
-    borderWidth: 2,
-    borderColor: '#0D0D0D',
-  },
-  unreadBadge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-    borderWidth: 1.5,
-    borderColor: '#0D0D0D',
-  },
+  onlineDot: { position: 'absolute', bottom: 2, right: 2, width: 14, height: 14, borderRadius: 7, backgroundColor: '#31C48D', borderWidth: 2, borderColor: '#0D0D0D' },
+  unreadBadge: { position: 'absolute', top: -2, right: -2, minWidth: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3, borderWidth: 1.5, borderColor: '#0D0D0D' },
   unreadText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   convBody: { flex: 1, gap: 3 },
   convName: { color: '#fff', fontSize: 15, fontWeight: '600' },
@@ -741,7 +994,7 @@ const styles = StyleSheet.create({
   convTime: { fontSize: 11 },
   unreadDot: { width: 10, height: 10, borderRadius: 5 },
 
-  // ── Empty
+  // Empty
   empty: { alignItems: 'center', justifyContent: 'center', paddingTop: 80, gap: 12 },
   emptyTitle: { color: '#fff', fontSize: 18, fontWeight: '700' },
   emptySub: { color: '#8E8E93', fontSize: 14 },

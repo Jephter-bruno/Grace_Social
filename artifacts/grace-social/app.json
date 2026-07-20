@@ -28,7 +28,20 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Grace Social to access your photos to share images.",
+          "cameraPermission": "Allow Grace Social to use your camera."
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow Grace Social to record audio messages."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
