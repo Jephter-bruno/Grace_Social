@@ -182,8 +182,8 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
           onPress={isOwnPost ? undefined : openMemberProfile}
           activeOpacity={isOwnPost ? 1 : 0.7}
         >
-          <Text style={[styles.userName, { color: colors.foreground }]}>{post.userName}</Text>
-          <Text style={[styles.userHandle, { color: colors.mutedForeground }]}>
+          <Text style={[styles.userName, { color: colors.foreground }]} numberOfLines={1} ellipsizeMode="tail">{post.userName}</Text>
+          <Text style={[styles.userHandle, { color: colors.mutedForeground }]} numberOfLines={1} ellipsizeMode="tail">
             {post.userHandle}
             {post.userHandle ? '  ·  ' : ''}{post.timestamp}
           </Text>
@@ -333,8 +333,10 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
 
       {/* ── Caption ── */}
       <View style={styles.caption}>
-        <Text style={[styles.captionUser, { color: colors.foreground }]}>{post.userName} </Text>
-        <Text style={[styles.captionText, { color: colors.foreground }]}>{post.caption}</Text>
+        <Text style={[styles.captionText, { color: colors.foreground }]}>
+          <Text style={styles.captionUser}>{post.userName}  </Text>
+          {post.caption}
+        </Text>
       </View>
 
       {post.comments > 0 && (
@@ -426,22 +428,22 @@ const styles = StyleSheet.create({
   pausedText: { color: '#fff', fontSize: 11, fontFamily: 'Inter_500Medium' },
 
   // Verse
-  verseCard: { marginHorizontal: 12, marginTop: 10, padding: 12, borderRadius: 8, borderLeftWidth: 3 },
-  verseText: { fontSize: 13, fontFamily: 'Inter_400Regular', fontStyle: 'italic', lineHeight: 19 },
-  verseRef: { fontSize: 12, fontFamily: 'Inter_600SemiBold', marginTop: 5 },
+  verseCard: { marginHorizontal: 14, marginTop: 10, padding: 14, borderRadius: 12, borderLeftWidth: 3 },
+  verseText: { fontSize: 13, fontFamily: 'Inter_400Regular', fontStyle: 'italic', lineHeight: 20 },
+  verseRef: { fontSize: 12, fontFamily: 'Inter_600SemiBold', marginTop: 6 },
 
   // Action bar
-  actions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8 },
-  leftActions: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 6, paddingVertical: 4, marginRight: 4 },
+  actions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 10 },
+  leftActions: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 8, paddingVertical: 6, marginRight: 2 },
   actionCount: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  saveBtn: { padding: 4 },
+  saveBtn: { padding: 8 },
 
   // Caption
-  caption: { paddingHorizontal: 12, paddingBottom: 4, flexDirection: 'row', flexWrap: 'wrap' },
+  caption: { paddingHorizontal: 14, paddingBottom: 6 },
   captionUser: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  captionText: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 18 },
-  commentsBtn: { paddingHorizontal: 12, paddingBottom: 10 },
+  captionText: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 20 },
+  commentsBtn: { paddingHorizontal: 14, paddingBottom: 10 },
   commentsText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
 
   // More sheet

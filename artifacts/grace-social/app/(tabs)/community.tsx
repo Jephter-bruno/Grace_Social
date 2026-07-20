@@ -150,8 +150,8 @@ function CommunityImageCard({ community }: { community: Community }) {
       {/* Content */}
       <View style={styles.communityContent}>
         <View>
-          <Text style={styles.communityName}>{community.name}</Text>
-          <Text style={styles.communityMembers}>{community.members.toLocaleString()} members</Text>
+          <Text style={styles.communityName} numberOfLines={1} ellipsizeMode="tail">{community.name}</Text>
+          <Text style={styles.communityMembers} numberOfLines={1}>{community.members.toLocaleString()} members</Text>
         </View>
         <View style={styles.communityBottom}>
           <View style={styles.publicBadge}>
@@ -211,7 +211,7 @@ export default function CommunityScreen() {
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <CommunityImageCard community={item} />}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: isWeb ? 40 : 100, gap: 12 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: isWeb ? 90 : insets.bottom + 88, gap: 12 }}
         ListHeaderComponent={
           <View>
             {/* Header */}
@@ -488,9 +488,9 @@ const styles = StyleSheet.create({
   publicDot: { width: 7, height: 7, borderRadius: 3.5 },
   publicText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#fff' },
   joinCircleBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },

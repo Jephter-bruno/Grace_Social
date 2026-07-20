@@ -126,7 +126,7 @@ export default function HomeScreen() {
         renderItem={renderItem}
         ListHeaderComponent={renderHeader}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: isWeb ? 34 : 100 }}
+        contentContainerStyle={{ paddingBottom: isWeb ? 90 : insets.bottom + 88 }}
         viewabilityConfig={viewabilityConfig.current}
         onViewableItemsChanged={onViewableItemsChanged.current}
       />

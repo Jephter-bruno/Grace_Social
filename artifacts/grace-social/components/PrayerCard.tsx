@@ -48,7 +48,7 @@ export function PrayerCard({ prayer }: { prayer: Prayer }) {
       <View style={styles.header}>
         <AvatarCircle initials={prayer.userInitials} color={prayer.userColor} size={42} />
         <View style={styles.headerInfo}>
-          <Text style={[styles.userName, { color: colors.foreground }]}>{prayer.userName}</Text>
+          <Text style={[styles.userName, { color: colors.foreground }]} numberOfLines={1} ellipsizeMode="tail">{prayer.userName}</Text>
           <Text style={[styles.timestamp, { color: colors.mutedForeground }]}>{prayer.timestamp}</Text>
         </View>
         <View style={[styles.badge, { backgroundColor: catColor }]}>
@@ -137,13 +137,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  headerInfo: { flex: 1 },
+  headerInfo: { flex: 1, minWidth: 0 },
   userName: { fontSize: 14, fontFamily: 'Inter_700Bold' },
   timestamp: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
   badge: {
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 20,
+    flexShrink: 0,
   },
   badgeText: {
     fontSize: 12,
@@ -158,7 +159,7 @@ const styles = StyleSheet.create({
   request: {
     fontSize: 14,
     fontFamily: 'Inter_400Regular',
-    lineHeight: 21,
+    lineHeight: 22,
   },
   verseReactions: { borderRadius: 12, borderWidth: 1, padding: 12, gap: 8 },
   verseReactionsHeader: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 2 },

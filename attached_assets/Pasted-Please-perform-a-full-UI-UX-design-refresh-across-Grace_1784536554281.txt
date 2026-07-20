@@ -1,0 +1,21 @@
+Please perform a full UI/UX design refresh across Grace Social to beautify the application and fix all layout and visual bugs.
+
+### 1. Visual Aesthetics & Polish
+- **Color Palette & Styling**: Standardize a clean, modern color palette across all screens. Use subtle borders, refined drop shadows/elevation, soft background tones, and consistent rounded corners (cards, buttons, inputs).
+- **Typography**: Establish a clear typographic hierarchy with appropriate font weights, legible sizes, and comfortable line heights (`lineHeight`) so text never looks cramped or squished.
+
+### 2. Prevent Text Overlap & Hidden Content (Layout Fixes)
+- **Container Padding & Margins**: Ensure all card containers, lists, and modal components have sufficient inner padding so text never overlaps borders, badges, or adjacent elements.
+- **Flexbox & Text Truncation**:
+  - Apply `flexShrink: 1` and explicit bounds on text containers to prevent header/title text from overflowing into badges or icons.
+  - Set `numberOfLines` with `ellipsizeMode="tail"` on dynamic titles and user handles where appropriate to gracefully handle long text without breaking lines awkwardly.
+- **Scrollable Area Insets**: Add adequate bottom padding (`contentContainerStyle={{ paddingBottom: ... }}`) to all `ScrollView` and `FlatList` components so the last item is never hidden behind the bottom navigation tab bar or floating action buttons (FABs).
+- **Safe Area Insets**: Ensure `SafeAreaView` or safe-area context is applied properly to top headers, status bar areas, and bottom action bars across all screens and device form factors.
+
+### 3. Component & Feed Refinement
+- **Cards & Items**: Clean up spacing between user avatars, display names, timestamps, post content, and action buttons (likes, comments, share).
+- **Interactive Elements**: Standardize button sizes, icon paddings, and tap target sizes (minimum 44x44px) so all interactive controls are easy to tap and clearly spaced out.
+- **Badges & Tags**: Ensure status badges (e.g., categories, tags) render inline without colliding with titles or timestamps.
+
+### 4. Verification
+- Test all major screens (Home, Prayer, Testimonies, Communities/Realms, Profile) on both standard mobile widths and smaller viewports to verify no text is clipped, hidden behind sticky UI elements, or overlapping.
