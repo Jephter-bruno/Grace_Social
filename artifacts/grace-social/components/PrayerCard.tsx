@@ -10,20 +10,12 @@ import { Prayer, useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 
-const CATEGORY_ICONS: Record<string, string> = {
-  health: 'activity',
-  family: 'users',
-  work: 'briefcase',
-  faith: 'heart',
-  gratitude: 'star',
-};
-
 const CATEGORY_COLORS: Record<string, string> = {
-  health: '#27AE60',
+  health: '#E91E8C',
   family: '#2980B9',
   work: '#F39C12',
-  faith: '#E91E8C',
-  gratitude: '#D4A843',
+  faith: '#8E44AD',
+  gratitude: '#27AE60',
 };
 
 export function PrayerCard({ prayer }: { prayer: Prayer }) {
@@ -33,8 +25,8 @@ export function PrayerCard({ prayer }: { prayer: Prayer }) {
   const [commentsVisible, setCommentsVisible] = useState(false);
   const [versePickerVisible, setVersePickerVisible] = useState(false);
   const [verseReactions, setVerseReactions] = useState<{ reference: string; text: string }[]>([]);
-  const iconName = CATEGORY_ICONS[prayer.category] ?? 'heart';
   const catColor = CATEGORY_COLORS[prayer.category] ?? colors.accent;
+  const catLabel = prayer.category.charAt(0).toUpperCase() + prayer.category.slice(1);
 
   const handlePray = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -52,22 +44,27 @@ export function PrayerCard({ prayer }: { prayer: Prayer }) {
 
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+      {/* Header row: avatar + name/date + category badge */}
       <View style={styles.header}>
-        <AvatarCircle initials={prayer.userInitials} color={prayer.userColor} size={40} />
+        <AvatarCircle initials={prayer.userInitials} color={prayer.userColor} size={42} />
         <View style={styles.headerInfo}>
           <Text style={[styles.userName, { color: colors.foreground }]}>{prayer.userName}</Text>
           <Text style={[styles.timestamp, { color: colors.mutedForeground }]}>{prayer.timestamp}</Text>
         </View>
-        <View style={[styles.badge, { backgroundColor: catColor + '20', borderColor: catColor }]}>
-          <Feather name={iconName as any} size={11} color={catColor} />
-          <Text style={[styles.badgeText, { color: catColor }]}>
-            {prayer.category.charAt(0).toUpperCase() + prayer.category.slice(1)}
-          </Text>
+        <View style={[styles.badge, { backgroundColor: catColor }]}>
+          <Text style={styles.badgeText}>{catLabel}</Text>
         </View>
       </View>
 
-      <Text style={[styles.request, { color: colors.foreground }]}>{prayer.request}</Text>
+      {/* Title */}
+      {prayer.title ? (
+        <Text style={[styles.title, { color: colors.foreground }]}>{prayer.title}</Text>
+      ) : null}
 
+      {/* Request body */}
+      <Text style={[styles.request, { color: colors.mutedForeground }]}>{prayer.request}</Text>
+
+      {/* Scripture reactions */}
       {verseReactions.length > 0 && (
         <View style={[styles.verseReactions, { backgroundColor: colors.muted, borderColor: colors.border }]}>
           <View style={styles.verseReactionsHeader}>
@@ -83,34 +80,34 @@ export function PrayerCard({ prayer }: { prayer: Prayer }) {
         </View>
       )}
 
+      {/* Footer */}
       <View style={[styles.footer, { borderTopColor: colors.border }]}>
+        <TouchableOpacity style={styles.footerBtn} onPress={handlePray} activeOpacity={0.7}>
+          <Text style={[styles.footerIcon]}>🕊</Text>
+          <Text style={[styles.footerText, { color: prayer.isPraying ? '#E07A54' : colors.mutedForeground }]}>
+            {prayer.prayerCount} Praying
+          </Text>
+        </TouchableOpacity>
+
+        <View style={[styles.footerDivider, { backgroundColor: colors.border }]} />
+
         <TouchableOpacity
-          style={[styles.prayBtn, { backgroundColor: prayer.isPraying ? colors.primary + '18' : colors.muted }]}
-          onPress={handlePray}
+          style={styles.footerBtn}
+          onPress={() => setCommentsVisible(true)}
           activeOpacity={0.7}
         >
-          <Feather name="heart" size={15} color={prayer.isPraying ? colors.primary : colors.mutedForeground} />
-          <Text style={[styles.prayText, { color: prayer.isPraying ? colors.primary : colors.mutedForeground }]}>
-            {prayer.isPraying ? 'Praying' : 'Pray'} · {prayer.prayerCount}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.respondBtn}
-          onPress={() => setCommentsVisible(true)}
-        >
           <Feather name="message-circle" size={15} color={colors.mutedForeground} />
-          <Text style={[styles.respondText, { color: colors.mutedForeground }]}>
-            Respond{prayer.comments > 0 ? ` · ${prayer.comments}` : ''}
+          <Text style={[styles.footerText, { color: colors.mutedForeground }]}>
+            Comment{prayer.comments > 0 ? ` (${prayer.comments})` : ''}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.verseBtn, { backgroundColor: colors.accent + '15', borderColor: colors.accent + '50' }]}
+          style={styles.verseBtn}
           onPress={() => setVersePickerVisible(true)}
+          activeOpacity={0.7}
         >
-          <Feather name="book-open" size={14} color={colors.accent} />
-          <Text style={[styles.verseBtnText, { color: colors.accent }]}>Verse</Text>
+          <Feather name="book-open" size={14} color={colors.mutedForeground} />
         </TouchableOpacity>
       </View>
 
@@ -121,7 +118,6 @@ export function PrayerCard({ prayer }: { prayer: Prayer }) {
         title="Prayer Responses"
         onClose={() => setCommentsVisible(false)}
       />
-
       <VersePickerModal
         visible={versePickerVisible}
         onClose={() => setVersePickerVisible(false)}
@@ -132,25 +128,67 @@ export function PrayerCard({ prayer }: { prayer: Prayer }) {
 }
 
 const styles = StyleSheet.create({
-  card: { marginHorizontal: 16, marginVertical: 6, borderRadius: 16, borderWidth: 1, padding: 16, gap: 12 },
+  card: {
+    marginHorizontal: 16,
+    marginVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    gap: 10,
+  },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   headerInfo: { flex: 1 },
-  userName: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  timestamp: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  badge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20, borderWidth: 1 },
-  badgeText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
-  request: { fontSize: 14, fontFamily: 'Inter_400Regular', lineHeight: 21 },
+  userName: { fontSize: 14, fontFamily: 'Inter_700Bold' },
+  timestamp: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+    color: '#fff',
+  },
+  title: {
+    fontSize: 15,
+    fontFamily: 'Inter_700Bold',
+    lineHeight: 22,
+  },
+  request: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    lineHeight: 21,
+  },
   verseReactions: { borderRadius: 12, borderWidth: 1, padding: 12, gap: 8 },
   verseReactionsHeader: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 2 },
   verseReactionsLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 0.5 },
   verseReactionItem: { borderLeftWidth: 2.5, paddingLeft: 10, gap: 2 },
   verseReactionRef: { fontSize: 12, fontFamily: 'Inter_700Bold' },
   verseReactionText: { fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 18 },
-  footer: { flexDirection: 'row', gap: 8, paddingTop: 12, borderTopWidth: 1, alignItems: 'center' },
-  prayBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
-  prayText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  respondBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8 },
-  respondText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
-  verseBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 7, borderWidth: 1 },
-  verseBtnText: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  footer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    gap: 12,
+  },
+  footerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  footerIcon: { fontSize: 15 },
+  footerText: {
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+  },
+  footerDivider: {
+    width: 1,
+    height: 16,
+  },
+  verseBtn: {
+    marginLeft: 'auto',
+    padding: 4,
+  },
 });

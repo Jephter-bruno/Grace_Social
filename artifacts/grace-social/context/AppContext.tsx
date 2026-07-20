@@ -57,6 +57,7 @@ export interface Prayer {
   userName: string;
   userInitials: string;
   userColor: string;
+  title?: string;
   request: string;
   prayerCount: number;
   isPraying: boolean;
@@ -387,12 +388,12 @@ const INITIAL_COMMENTS: Record<string, Comment[]> = {
 };
 
 const INITIAL_PRAYERS: Prayer[] = [
-  { id: 'pr1', userName: 'Mary K.', userInitials: 'MK', userColor: '#E91E8C', request: "Please pray for my mother who is going through chemotherapy. She needs God's healing touch and peace during this difficult time. We are trusting in His plan.", prayerCount: 48, isPraying: false, timestamp: '30 min ago', category: 'health', comments: 3 },
-  { id: 'pr2', userName: 'Thomas B.', userInitials: 'TB', userColor: '#E74C3C', request: "Asking for prayer for my marriage. My wife and I are going through a difficult season. We believe God can restore and strengthen our bond. Please intercede with us.", prayerCount: 72, isPraying: true, timestamp: '1h ago', category: 'family', comments: 5 },
-  { id: 'pr3', userName: 'Anna P.', userInitials: 'AP', userColor: '#2980B9', request: "Praying for a new job opportunity. I've been unemployed for 3 months and trust God has something prepared. Seeking direction and daily provision from Him.", prayerCount: 55, isPraying: false, timestamp: '3h ago', category: 'work', comments: 2 },
-  { id: 'pr4', userName: 'Pastor James', userInitials: 'PJ', userColor: '#D4A843', request: "Grateful and praising God today for answered prayer! My son passed his exams and will be starting university in September. God is faithful in all His ways!", prayerCount: 130, isPraying: false, timestamp: '5h ago', category: 'gratitude', comments: 8 },
-  { id: 'pr5', userName: 'Ruth M.', userInitials: 'RM', userColor: '#8E44AD', request: "Going through a season of doubt and spiritual dryness. Asking for prayers to reignite my faith and feel God's presence again. I know He is near.", prayerCount: 93, isPraying: false, timestamp: '7h ago', category: 'faith', comments: 4 },
-  { id: 'pr6', userName: 'James O.', userInitials: 'JO', userColor: '#16A085', request: "My father was just diagnosed with diabetes. Please join us in prayer for his healing and for wisdom for the doctors treating him. We trust in the Great Physician.", prayerCount: 61, isPraying: false, timestamp: '12h ago', category: 'health', comments: 2 },
+  { id: 'pr1', userName: 'Mary K.', userInitials: 'MK', userColor: '#E91E8C', title: 'Healing for my mother', request: "Please pray for my mother who is going through chemotherapy. She needs God's healing touch and peace during this difficult time. We are trusting in His plan.", prayerCount: 48, isPraying: false, timestamp: 'Jul 20', category: 'health', comments: 3 },
+  { id: 'pr2', userName: 'Thomas B.', userInitials: 'TB', userColor: '#E74C3C', title: 'Restoration of my marriage', request: "Asking for prayer for my marriage. My wife and I are going through a difficult season. We believe God can restore and strengthen our bond. Please intercede with us.", prayerCount: 72, isPraying: true, timestamp: 'Jul 20', category: 'family', comments: 5 },
+  { id: 'pr3', userName: 'Anna P.', userInitials: 'AP', userColor: '#2980B9', title: 'Trusting God for new work', request: "Praying for a new job opportunity. I've been unemployed for 3 months and trust God has something prepared. Seeking direction and daily provision from Him.", prayerCount: 55, isPraying: false, timestamp: 'Jul 19', category: 'work', comments: 2 },
+  { id: 'pr4', userName: 'Pastor James', userInitials: 'PJ', userColor: '#D4A843', title: 'God answered our prayers!', request: "Grateful and praising God today for answered prayer! My son passed his exams and will be starting university in September. God is faithful in all His ways!", prayerCount: 130, isPraying: false, timestamp: 'Jul 19', category: 'gratitude', comments: 8 },
+  { id: 'pr5', userName: 'Ruth M.', userInitials: 'RM', userColor: '#8E44AD', title: 'Seeking renewed faith', request: "Going through a season of doubt and spiritual dryness. Asking for prayers to reignite my faith and feel God's presence again. I know He is near.", prayerCount: 93, isPraying: false, timestamp: 'Jul 18', category: 'faith', comments: 4 },
+  { id: 'pr6', userName: 'James O.', userInitials: 'JO', userColor: '#16A085', title: "Father's diabetes diagnosis", request: "My father was just diagnosed with diabetes. Please join us in prayer for his healing and for wisdom for the doctors treating him. We trust in the Great Physician.", prayerCount: 61, isPraying: false, timestamp: 'Jul 18', category: 'health', comments: 2 },
 ];
 
 const INITIAL_PRAYER_COMMENTS: Record<string, Comment[]> = {

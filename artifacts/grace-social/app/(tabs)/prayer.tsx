@@ -20,6 +20,7 @@ import { Prayer, PrayerCategory, useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 
 type FilterKey = 'all' | PrayerCategory;
+type TabKey = 'wall' | 'testimonies';
 
 const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -30,12 +31,18 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'gratitude', label: 'Gratitude' },
 ];
 
+const QUICK_CARDS = [
+  { id: 'bible', icon: 'book-open', label: 'Bible', sub: 'Read Scripture', onPress: () => router.push('/bible') },
+  { id: 'devotionals', icon: 'bookmark', label: 'Devotionals', sub: 'Daily reading', onPress: () => {} },
+];
+
 export default function PrayerScreen() {
   const { prayers } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
   const [active, setActive] = useState<FilterKey>('all');
+  const [tab, setTab] = useState<TabKey>('wall');
   const [showModal, setShowModal] = useState(false);
 
   const filtered = useMemo(
@@ -60,31 +67,66 @@ export default function PrayerScreen() {
     return <PrayerCard prayer={item.data} />;
   };
 
-  return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View
-        style={[
-          styles.header,
-          {
-            paddingTop: (isWeb ? 67 : insets.top) + 8,
-            backgroundColor: colors.background,
-            borderBottomColor: colors.border,
-          },
-        ]}
-      >
-        <Text style={[styles.title, { color: colors.foreground }]}>Prayer Wall</Text>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/bible')}>
-          <Feather name="book-open" size={22} color={colors.foreground} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => router.push('/prayer-groups')}>
-          <Feather name="users" size={22} color={colors.foreground} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => setShowModal(true)}>
-          <Feather name="plus" size={24} color={colors.foreground} />
-        </TouchableOpacity>
+  const CORAL = '#E07A54';
+
+  const ListHeader = (
+    <View>
+      {/* Quick access cards */}
+      <View style={styles.quickRow}>
+        {QUICK_CARDS.map((card) => (
+          <TouchableOpacity
+            key={card.id}
+            style={[styles.quickCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={card.onPress}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.quickIcon, { backgroundColor: colors.muted }]}>
+              <Feather name={card.icon as any} size={20} color={colors.foreground} />
+            </View>
+            <View>
+              <Text style={[styles.quickLabel, { color: colors.foreground }]}>{card.label}</Text>
+              <Text style={[styles.quickSub, { color: colors.mutedForeground }]}>{card.sub}</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      <View style={[styles.filterRow, { borderBottomColor: colors.border }]}>
+      {/* Reminders full-width card */}
+      <TouchableOpacity
+        style={[styles.reminderCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+        activeOpacity={0.75}
+      >
+        <View style={[styles.quickIcon, { backgroundColor: colors.muted }]}>
+          <Feather name="bell-off" size={20} color={colors.foreground} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.quickLabel, { color: colors.foreground }]}>Devotional Reminders</Text>
+          <Text style={[styles.quickSub, { color: colors.mutedForeground }]}>Get a daily nudge to read</Text>
+        </View>
+        <Feather name="chevron-right" size={18} color={colors.mutedForeground} />
+      </TouchableOpacity>
+
+      {/* Tabs */}
+      <View style={[styles.tabRow, { borderBottomColor: colors.border }]}>
+        {([
+          { key: 'wall', label: '🙏  Prayer Wall' },
+          { key: 'testimonies', label: '✨  Testimonies' },
+        ] as { key: TabKey; label: string }[]).map((t) => (
+          <TouchableOpacity
+            key={t.key}
+            style={[styles.tab, tab === t.key && { borderBottomColor: CORAL, borderBottomWidth: 2.5 }]}
+            onPress={() => setTab(t.key)}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.tabText, { color: tab === t.key ? CORAL : colors.mutedForeground }]}>
+              {t.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Filter chips */}
+      {tab === 'wall' && (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -95,20 +137,16 @@ export default function PrayerScreen() {
               key={f.key}
               style={[
                 styles.chip,
-                {
-                  backgroundColor: active === f.key ? colors.primary : colors.muted,
-                  borderColor: active === f.key ? colors.primary : colors.border,
-                },
+                active === f.key
+                  ? { backgroundColor: CORAL }
+                  : { backgroundColor: 'transparent' },
               ]}
               onPress={() => setActive(f.key)}
             >
               <Text
                 style={[
                   styles.chipText,
-                  {
-                    color:
-                      active === f.key ? colors.primaryForeground : colors.mutedForeground,
-                  },
+                  { color: active === f.key ? '#fff' : colors.mutedForeground },
                 ]}
               >
                 {f.label}
@@ -116,22 +154,86 @@ export default function PrayerScreen() {
             </TouchableOpacity>
           ))}
         </ScrollView>
-      </View>
+      )}
+    </View>
+  );
 
+  if (tab === 'testimonies') {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View
+          style={[
+            styles.header,
+            {
+              paddingTop: (isWeb ? 67 : insets.top) + 8,
+              backgroundColor: colors.background,
+            },
+          ]}
+        >
+          <Text style={[styles.title, { color: colors.foreground }]}>Prayer</Text>
+          <TouchableOpacity
+            style={[styles.circlesBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => router.push('/prayer-groups')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.circlesBtnText}>🔥  My Circles</Text>
+          </TouchableOpacity>
+        </View>
+
+        {ListHeader}
+
+        <View style={styles.emptyState}>
+          <Text style={[styles.emptyIcon]}>✨</Text>
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Testimonies coming soon</Text>
+          <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>
+            Share how God has moved in your life
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
         data={feedItems}
-        keyExtractor={(item, idx) => item.type === 'ad' ? `ad-${item.adIndex}` : item.data.id}
+        keyExtractor={(item) => item.type === 'ad' ? `ad-${item.adIndex}` : item.data.id}
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingVertical: 8, paddingBottom: isWeb ? 34 : 100 }}
+        contentContainerStyle={{ paddingBottom: isWeb ? 34 : 100 }}
+        ListHeaderComponent={
+          <View>
+            {/* Header */}
+            <View
+              style={[
+                styles.header,
+                {
+                  paddingTop: (isWeb ? 67 : insets.top) + 8,
+                  backgroundColor: colors.background,
+                },
+              ]}
+            >
+              <Text style={[styles.title, { color: colors.foreground }]}>Prayer</Text>
+              <TouchableOpacity
+                style={[styles.circlesBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+                onPress={() => router.push('/prayer-groups')}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.circlesBtnText}>🔥  My Circles</Text>
+              </TouchableOpacity>
+            </View>
+            {ListHeader}
+          </View>
+        }
       />
 
+      {/* FAB */}
       <TouchableOpacity
-        style={[styles.fab, { backgroundColor: colors.primary, bottom: (isWeb ? 34 : insets.bottom) + 70 }]}
+        style={[styles.fab, { backgroundColor: CORAL, bottom: (isWeb ? 34 : insets.bottom) + 70 }]}
         onPress={() => setShowModal(true)}
         activeOpacity={0.85}
       >
-        <Feather name="edit-2" size={20} color="#fff" />
+        <Feather name="plus" size={24} color="#fff" />
       </TouchableOpacity>
 
       <NewPrayerModal visible={showModal} onClose={() => setShowModal(false)} />
@@ -140,37 +242,97 @@ export default function PrayerScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 0.5,
+    paddingBottom: 14,
   },
   title: {
     flex: 1,
-    fontSize: 22,
+    fontSize: 26,
     fontFamily: 'Inter_700Bold',
   },
-  iconBtn: {
-    padding: 6,
+  circlesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 22,
+    borderWidth: 1,
   },
-  filterRow: {
-    borderBottomWidth: 0.5,
+  circlesBtnText: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#F5F0E8',
+  },
+  quickRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 10,
+    marginBottom: 10,
+  },
+  quickCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  reminderCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+  },
+  quickIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quickLabel: {
+    fontSize: 14,
+    fontFamily: 'Inter_700Bold',
+  },
+  quickSub: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    marginTop: 1,
+  },
+  tabRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    marginBottom: 0,
+  },
+  tab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderBottomWidth: 2.5,
+    borderBottomColor: 'transparent',
+  },
+  tabText: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
   },
   filterContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 4,
   },
   chip: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 16,
     paddingVertical: 7,
     borderRadius: 20,
-    borderWidth: 1,
   },
   chipText: {
     fontSize: 13,
@@ -186,8 +348,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
+    shadowOpacity: 0.25,
     shadowRadius: 8,
     elevation: 6,
   },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 80,
+  },
+  emptyIcon: { fontSize: 48, marginBottom: 12 },
+  emptyTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', marginBottom: 6 },
+  emptySub: { fontSize: 14, fontFamily: 'Inter_400Regular' },
 });
