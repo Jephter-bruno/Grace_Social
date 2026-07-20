@@ -3,328 +3,559 @@ import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
-  FlatList,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AvatarCircle } from '@/components/AvatarCircle';
 import { useColors } from '@/hooks/useColors';
 
-interface PrayerGroup {
+// ─── Data model ────────────────────────────────────────────────────────────────
+
+interface CircleMember {
   id: string;
-  name: string;
-  description: string;
-  members: number;
-  category: string;
+  displayName: string;  // full name shown below avatar
+  initials: string;
   color: string;
-  icon: string;
-  isJoined: boolean;
-  activePrayers: number;
-  lastActivity: string;
+  streakDays: number;
+  prayedToday: boolean;
+  isYou?: boolean;
 }
 
-const INITIAL_GROUPS: PrayerGroup[] = [
+interface PrayerCircle {
+  id: string;
+  name: string;
+  streakDays: number;
+  members: CircleMember[];
+  myPrayedToday: boolean;   // whether the current user has prayed today
+  groupPrayerList: string[];
+}
+
+const INITIAL_CIRCLES: PrayerCircle[] = [
   {
-    id: '1',
-    name: 'Morning Prayer Circle',
-    description: 'Start your day with intentional prayer. We gather every morning in spirit to lift requests together.',
-    members: 342,
-    category: 'Daily Prayer',
-    color: '#F59E0B',
-    icon: 'sunrise',
-    isJoined: true,
-    activePrayers: 28,
-    lastActivity: '2m ago',
-  },
-  {
-    id: '2',
-    name: 'Healing & Restoration',
-    description: 'A safe space for those seeking healing — physical, emotional, and spiritual restoration.',
-    members: 215,
-    category: 'Health',
-    color: '#10B981',
-    icon: 'heart',
-    isJoined: false,
-    activePrayers: 41,
-    lastActivity: '15m ago',
-  },
-  {
-    id: '3',
-    name: 'Families in Faith',
-    description: 'Praying for marriages, children, and households. Rooted in love and scripture.',
-    members: 189,
-    category: 'Family',
-    color: '#8B5CF6',
-    icon: 'users',
-    isJoined: true,
-    activePrayers: 17,
-    lastActivity: '1h ago',
-  },
-  {
-    id: '4',
-    name: 'Warriors in Prayer',
-    description: 'Intercession warriors standing in the gap for communities, nations, and the lost.',
-    members: 527,
-    category: 'Intercession',
-    color: '#EF4444',
-    icon: 'shield',
-    isJoined: false,
-    activePrayers: 63,
-    lastActivity: '5m ago',
-  },
-  {
-    id: '5',
-    name: 'Youth Prayer Network',
-    description: 'Young believers praying for each other, for their schools, and for the next generation.',
-    members: 298,
-    category: 'Youth',
-    color: '#3B82F6',
-    icon: 'star',
-    isJoined: false,
-    activePrayers: 22,
-    lastActivity: '30m ago',
-  },
-  {
-    id: '6',
-    name: 'Grief & Comfort',
-    description: 'Walking alongside those who grieve. Gentle prayers and a compassionate community.',
-    members: 134,
-    category: 'Comfort',
-    color: '#6B7280',
-    icon: 'wind',
-    isJoined: false,
-    activePrayers: 9,
-    lastActivity: '3h ago',
-  },
-  {
-    id: '7',
-    name: 'Work & Purpose',
-    description: 'Praying over careers, callings, and finding purpose in everyday work.',
-    members: 176,
-    category: 'Work',
-    color: '#0EA5E9',
-    icon: 'briefcase',
-    isJoined: false,
-    activePrayers: 14,
-    lastActivity: '45m ago',
+    id: 'c1',
+    name: 'Morning Warriors',
+    streakDays: 14,
+    myPrayedToday: false,
+    groupPrayerList: [
+      "Healing for Sarah's mom",
+      "Strength for James's job search",
+      'Peace over Mark's family situation',
+    ],
+    members: [
+      { id: 'm0', displayName: 'You',        initials: 'Y',  color: '#4A90A4', streakDays: 14, prayedToday: false, isYou: true },
+      { id: 'm1', displayName: 'Sarah M.',   initials: 'SM', color: '#E91E8C', streakDays: 12, prayedToday: true },
+      { id: 'm2', displayName: 'Pastor Tim', initials: 'PT', color: '#D4A843', streakDays: 14, prayedToday: true },
+      { id: 'm3', displayName: 'James K.',   initials: 'JK', color: '#2980B9', streakDays: 10, prayedToday: false },
+      { id: 'm4', displayName: 'Grace B.',   initials: 'GB', color: '#27AE60', streakDays: 14, prayedToday: true },
+      { id: 'm5', displayName: 'Mark L.',    initials: 'ML', color: '#8E44AD', streakDays:  8, prayedToday: true },
+      { id: 'm6', displayName: 'Hope W.',    initials: 'HW', color: '#E74C3C', streakDays: 11, prayedToday: false },
+    ],
   },
 ];
 
-const CATEGORIES = ['All', 'Daily Prayer', 'Health', 'Family', 'Intercession', 'Youth', 'Comfort', 'Work'];
+const CORAL = '#E07A54';
 
-export default function PrayerGroupsScreen() {
+// ─── Helper: ring-wrapped avatar ───────────────────────────────────────────────
+function ChainAvatar({ member, size = 58 }: { member: CircleMember; size?: number }) {
+  const ringSize = size + 6;
+  return (
+    <View style={{ alignItems: 'center', gap: 4 }}>
+      <View
+        style={{
+          width: ringSize,
+          height: ringSize,
+          borderRadius: ringSize / 2,
+          borderWidth: member.prayedToday ? 2.5 : 0,
+          borderColor: '#E8B94A',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <AvatarCircle initials={member.initials} color={member.color} size={size} />
+      </View>
+      <Text style={styles.chainName}>{member.displayName}</Text>
+      <Text style={styles.chainStreak}>🔥 {member.streakDays}</Text>
+    </View>
+  );
+}
+
+// ─── Detail screen ─────────────────────────────────────────────────────────────
+function CircleDetail({
+  circle,
+  onBack,
+  onTogglePrayed,
+}: {
+  circle: PrayerCircle;
+  onBack: () => void;
+  onTogglePrayed: () => void;
+}) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
-  const topPad = isWeb ? 67 : insets.top;
+  const topPad = (isWeb ? 67 : insets.top) + 8;
 
-  const [groups, setGroups] = useState(INITIAL_GROUPS);
-  const [activeCategory, setActiveCategory] = useState('All');
-  const [search, setSearch] = useState('');
+  const allMembers = circle.members.map((m) =>
+    m.isYou ? { ...m, prayedToday: circle.myPrayedToday } : m
+  );
+  const prayedCount = allMembers.filter((m) => m.prayedToday).length;
 
-  const filtered = groups.filter((g) => {
-    const matchCat = activeCategory === 'All' || g.category === activeCategory;
-    const matchSearch = search.trim() === '' || g.name.toLowerCase().includes(search.toLowerCase()) || g.description.toLowerCase().includes(search.toLowerCase());
-    return matchCat && matchSearch;
-  });
+  // Split into rows of 4 and 3
+  const row1 = allMembers.slice(0, 4);
+  const row2 = allMembers.slice(4);
 
-  const joinedGroups = groups.filter((g) => g.isJoined);
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: topPad, borderBottomColor: colors.border }]}>
+        <Text style={[styles.title, { color: colors.foreground }]}>{circle.name}</Text>
+        <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+          <Feather name="arrow-left" size={22} color={colors.foreground} />
+        </TouchableOpacity>
+      </View>
 
-  const toggleJoin = (id: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setGroups((prev) =>
-      prev.map((g) =>
-        g.id === id
-          ? { ...g, isJoined: !g.isJoined, members: g.isJoined ? g.members - 1 : g.members + 1 }
-          : g
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: isWeb ? 40 : insets.bottom + 40 }}
+      >
+        {/* Streak card */}
+        <View style={[styles.streakCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.streakLeft}>
+            <Text style={styles.streakFlame}>🔥</Text>
+            <Text style={[styles.streakText, { color: colors.foreground }]}>
+              {circle.streakDays} Day Group Streak
+            </Text>
+          </View>
+          <View style={styles.streakRight}>
+            <Feather name="users" size={14} color={colors.mutedForeground} />
+            <Text style={[styles.streakMembers, { color: colors.mutedForeground }]}>
+              {circle.members.length} members
+            </Text>
+          </View>
+        </View>
+
+        {/* Prayer chain */}
+        <View style={[styles.chainCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.chainLabel, { color: colors.mutedForeground }]}>PRAYER CHAIN</Text>
+
+          {/* Row 1 */}
+          <View style={styles.chainRow}>
+            {row1.map((m, i) => (
+              <React.Fragment key={m.id}>
+                <ChainAvatar member={m} />
+                {i < row1.length - 1 && (
+                  <View style={[styles.chainLine, { backgroundColor: colors.border }]} />
+                )}
+              </React.Fragment>
+            ))}
+          </View>
+
+          {/* Row 2 */}
+          {row2.length > 0 && (
+            <View style={styles.chainRow}>
+              {row2.map((m, i) => (
+                <React.Fragment key={m.id}>
+                  <ChainAvatar member={m} />
+                  {i < row2.length - 1 && (
+                    <View style={[styles.chainLine, { backgroundColor: colors.border }]} />
+                  )}
+                </React.Fragment>
+              ))}
+            </View>
+          )}
+
+          <Text style={[styles.prayedCount, { color: colors.mutedForeground }]}>
+            {prayedCount} of {circle.members.length} prayed today
+          </Text>
+        </View>
+
+        {/* I Prayed button */}
+        <TouchableOpacity
+          style={[
+            styles.prayedBtn,
+            {
+              backgroundColor: circle.myPrayedToday
+                ? '#2D4A3E'
+                : CORAL,
+              borderColor: circle.myPrayedToday ? '#3D6B58' : 'transparent',
+            },
+          ]}
+          onPress={() => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            onTogglePrayed();
+          }}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.prayedBtnText}>
+            {circle.myPrayedToday
+              ? '✓  Prayer logged for today  ✓'
+              : '🔥  I Prayed Today'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Group prayer list */}
+        <View style={[styles.prayerListCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.prayerListHeader}>
+            <Text style={styles.prayerListEmoji}>🙏</Text>
+            <Text style={[styles.prayerListLabel, { color: colors.foreground }]}>GROUP PRAYER LIST</Text>
+          </View>
+          {circle.groupPrayerList.map((item, i) => (
+            <View key={i} style={[styles.prayerListItem, { borderTopColor: colors.border }]}>
+              <Text style={[styles.prayerListIcon, { color: CORAL }]}>✝</Text>
+              <Text style={[styles.prayerListText, { color: colors.foreground }]}>{item}</Text>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+// ─── List screen ──────────────────────────────────────────────────────────────
+function CircleList({
+  circles,
+  onSelect,
+}: {
+  circles: PrayerCircle[];
+  onSelect: (id: string) => void;
+}) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const isWeb = Platform.OS === 'web';
+  const topPad = (isWeb ? 67 : insets.top) + 8;
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Header */}
+      <View style={[styles.header, { paddingTop: topPad, borderBottomColor: colors.border }]}>
+        <Text style={[styles.title, { color: colors.foreground }]}>Prayer Circles</Text>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          {/* invisible spacer on left, back nav via device */}
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: isWeb ? 40 : insets.bottom + 40 }}
+      >
+        {/* Description */}
+        <Text style={[styles.description, { color: colors.mutedForeground }]}>
+          Small private groups committed to praying for each other every day. Stay accountable with streak tracking.
+        </Text>
+
+        {/* Circle cards */}
+        {circles.map((circle) => {
+          const allMembers = circle.members.map((m) =>
+            m.isYou ? { ...m, prayedToday: circle.myPrayedToday } : m
+          );
+          const prayedCount = allMembers.filter((m) => m.prayedToday).length;
+          // Show up to 5 avatars + overflow
+          const shown = allMembers.slice(0, 5);
+          const overflow = allMembers.length - shown.length;
+
+          return (
+            <TouchableOpacity
+              key={circle.id}
+              style={[styles.circleCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => onSelect(circle.id)}
+              activeOpacity={0.8}
+            >
+              <View style={styles.circleCardTop}>
+                <View>
+                  <Text style={[styles.circleName, { color: colors.foreground }]}>{circle.name}</Text>
+                  <Text style={[styles.circleMembers, { color: colors.mutedForeground }]}>
+                    {circle.members.length} members
+                  </Text>
+                </View>
+                <View style={[styles.streakBadge, { backgroundColor: colors.muted }]}>
+                  <Text style={styles.streakBadgeFlame}>🔥</Text>
+                  <Text style={[styles.streakBadgeNum, { color: colors.foreground }]}>
+                    {circle.streakDays}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.circleCardBottom}>
+                <View style={styles.avatarRow}>
+                  {shown.map((m) => (
+                    <View
+                      key={m.id}
+                      style={[
+                        styles.avatarRingWrap,
+                        {
+                          borderColor: m.prayedToday ? '#E8B94A' : colors.border,
+                          borderWidth: 2,
+                        },
+                      ]}
+                    >
+                      <AvatarCircle initials={m.initials} color={m.color} size={36} />
+                    </View>
+                  ))}
+                  {overflow > 0 && (
+                    <View style={[styles.avatarRingWrap, styles.overflowBubble, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+                      <Text style={[styles.overflowText, { color: colors.mutedForeground }]}>+{overflow}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.prayedTodayText, { color: colors.mutedForeground }]}>
+                  {prayedCount}/{circle.members.length} prayed{'\n'}today
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+
+        {/* Create circle card */}
+        <TouchableOpacity
+          style={[styles.createCard, { borderColor: CORAL + '80', backgroundColor: colors.card }]}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.createPlus, { backgroundColor: colors.muted }]}>
+            <Feather name="plus" size={24} color={colors.foreground} />
+          </View>
+          <Text style={[styles.createTitle, { color: CORAL }]}>Create a Prayer Circle</Text>
+          <Text style={[styles.createSub, { color: colors.mutedForeground }]}>
+            Invite 3-12 friends to pray together
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
+    </View>
+  );
+}
+
+// ─── Root screen ──────────────────────────────────────────────────────────────
+export default function PrayerGroupsScreen() {
+  const [circles, setCircles] = useState<PrayerCircle[]>(INITIAL_CIRCLES);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const selected = circles.find((c) => c.id === selectedId) ?? null;
+
+  const handleTogglePrayed = () => {
+    if (!selectedId) return;
+    setCircles((prev) =>
+      prev.map((c) =>
+        c.id === selectedId ? { ...c, myPrayedToday: !c.myPrayedToday } : c
       )
     );
   };
 
-  const renderGroup = ({ item }: { item: PrayerGroup }) => (
-    <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={[styles.cardIconWrap, { backgroundColor: item.color + '20' }]}>
-        <Feather name={item.icon as any} size={22} color={item.color} />
-      </View>
-      <View style={styles.cardBody}>
-        <View style={styles.cardTop}>
-          <Text style={[styles.cardName, { color: colors.foreground }]}>{item.name}</Text>
-          <View style={[styles.catBadge, { backgroundColor: item.color + '18' }]}>
-            <Text style={[styles.catBadgeText, { color: item.color }]}>{item.category}</Text>
-          </View>
-        </View>
-        <Text style={[styles.cardDesc, { color: colors.mutedForeground }]} numberOfLines={2}>
-          {item.description}
-        </Text>
-        <View style={styles.cardMeta}>
-          <View style={styles.metaItem}>
-            <Feather name="users" size={11} color={colors.mutedForeground} />
-            <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
-              {item.members.toLocaleString()}
-            </Text>
-          </View>
-          <View style={styles.metaDot} />
-          <View style={styles.metaItem}>
-            <Feather name="message-circle" size={11} color={colors.mutedForeground} />
-            <Text style={[styles.metaText, { color: colors.mutedForeground }]}>
-              {item.activePrayers} active
-            </Text>
-          </View>
-          <View style={styles.metaDot} />
-          <Text style={[styles.metaText, { color: colors.mutedForeground }]}>{item.lastActivity}</Text>
-        </View>
-        <TouchableOpacity
-          style={[
-            styles.joinBtn,
-            {
-              backgroundColor: item.isJoined ? colors.muted : item.color,
-              borderColor: item.color,
-            },
-          ]}
-          onPress={() => toggleJoin(item.id)}
-        >
-          <Feather
-            name={item.isJoined ? 'check' : 'plus'}
-            size={14}
-            color={item.isJoined ? item.color : '#fff'}
-          />
-          <Text style={[styles.joinText, { color: item.isJoined ? item.color : '#fff' }]}>
-            {item.isJoined ? 'Joined' : 'Join Group'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
+  if (selected) {
+    return (
+      <CircleDetail
+        circle={selected}
+        onBack={() => setSelectedId(null)}
+        onTogglePrayed={handleTogglePrayed}
+      />
+    );
+  }
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.header, { paddingTop: topPad + 8, borderBottomColor: colors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Feather name="arrow-left" size={22} color={colors.foreground} />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={[styles.title, { color: colors.foreground }]}>Prayer Groups</Text>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-            {joinedGroups.length} joined
-          </Text>
-        </View>
-        <View style={{ width: 30 }} />
-      </View>
-
-      <View style={[styles.searchBar, { backgroundColor: colors.muted, marginHorizontal: 14, marginTop: 12 }]}>
-        <Feather name="search" size={16} color={colors.mutedForeground} />
-        <TextInput
-          style={[styles.searchInput, { color: colors.foreground }]}
-          placeholder="Search groups..."
-          placeholderTextColor={colors.mutedForeground}
-          value={search}
-          onChangeText={setSearch}
-        />
-        {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')}>
-            <Feather name="x" size={15} color={colors.mutedForeground} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {joinedGroups.length > 0 && activeCategory === 'All' && search === '' && (
-        <View style={[styles.section, { borderBottomColor: colors.border }]}>
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>MY GROUPS</Text>
-          <FlatList
-            data={joinedGroups}
-            keyExtractor={(g) => `joined-${g.id}`}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 10, paddingRight: 14 }}
-            renderItem={({ item }) => (
-              <View style={[styles.joinedChip, { backgroundColor: item.color + '18', borderColor: item.color + '40' }]}>
-                <Feather name={item.icon as any} size={14} color={item.color} />
-                <Text style={[styles.joinedChipText, { color: item.color }]}>{item.name}</Text>
-                <View style={[styles.pulseDot, { backgroundColor: item.color }]} />
-              </View>
-            )}
-          />
-        </View>
-      )}
-
-      <FlatList
-        data={filtered}
-        keyExtractor={(g) => g.id}
-        renderItem={renderGroup}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ padding: 14, gap: 12, paddingBottom: isWeb ? 34 : insets.bottom + 20 }}
-        ListHeaderComponent={
-          <FlatList
-            data={CATEGORIES}
-            keyExtractor={(c) => c}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 8, marginBottom: 12 }}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[
-                  styles.catChip,
-                  { backgroundColor: activeCategory === item ? colors.primary : colors.muted },
-                ]}
-                onPress={() => { Haptics.selectionAsync(); setActiveCategory(item); }}
-              >
-                <Text style={[styles.catChipText, { color: activeCategory === item ? '#fff' : colors.mutedForeground }]}>
-                  {item}
-                </Text>
-              </TouchableOpacity>
-            )}
-          />
-        }
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Feather name="users" size={44} color={colors.mutedForeground} />
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No groups found</Text>
-            <Text style={[styles.emptySub, { color: colors.mutedForeground }]}>
-              Try a different search or category
-            </Text>
-          </View>
-        }
-      />
-    </View>
+    <CircleList
+      circles={circles}
+      onSelect={(id) => setSelectedId(id)}
+    />
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 0.5 },
+
+  // shared header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    borderBottomWidth: 0.5,
+  },
+  title: { fontSize: 22, fontFamily: 'Inter_700Bold' },
   backBtn: { padding: 4 },
-  headerCenter: { alignItems: 'center' },
-  title: { fontSize: 18, fontFamily: 'Inter_700Bold' },
-  subtitle: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
-  searchBar: { flexDirection: 'row', alignItems: 'center', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9, gap: 8, marginBottom: 2 },
-  searchInput: { flex: 1, fontSize: 15, fontFamily: 'Inter_400Regular' },
-  section: { paddingTop: 14, paddingBottom: 10, paddingLeft: 14, borderBottomWidth: 0.5, marginBottom: 2 },
-  sectionLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 0.8, marginBottom: 10 },
-  joinedChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  joinedChipText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  pulseDot: { width: 7, height: 7, borderRadius: 3.5, marginLeft: 2 },
-  catChip: { borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
-  catChipText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  card: { borderRadius: 16, borderWidth: 1, padding: 14, flexDirection: 'row', gap: 14 },
-  cardIconWrap: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  cardBody: { flex: 1, gap: 6 },
-  cardTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
-  cardName: { fontSize: 15, fontFamily: 'Inter_700Bold', flex: 1, flexWrap: 'wrap' },
-  catBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, flexShrink: 0 },
-  catBadgeText: { fontSize: 10, fontFamily: 'Inter_700Bold' },
-  cardDesc: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 19 },
-  cardMeta: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  metaItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  metaText: { fontSize: 12, fontFamily: 'Inter_400Regular' },
-  metaDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#ccc' },
-  joinBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, borderWidth: 1, alignSelf: 'flex-start', marginTop: 2 },
-  joinText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  empty: { alignItems: 'center', paddingTop: 60, gap: 10 },
-  emptyTitle: { fontSize: 17, fontFamily: 'Inter_700Bold' },
-  emptySub: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center' },
+
+  // list
+  description: {
+    fontSize: 14,
+    fontFamily: 'Inter_400Regular',
+    lineHeight: 21,
+  },
+  circleCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+    gap: 14,
+  },
+  circleCardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
+  circleName: { fontSize: 16, fontFamily: 'Inter_700Bold' },
+  circleMembers: { fontSize: 13, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  streakBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 4,
+  },
+  streakBadgeFlame: { fontSize: 13 },
+  streakBadgeNum: { fontSize: 14, fontFamily: 'Inter_700Bold' },
+  circleCardBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  avatarRow: { flexDirection: 'row', gap: 4 },
+  avatarRingWrap: {
+    borderRadius: 22,
+    padding: 1,
+  },
+  overflowBubble: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+  },
+  overflowText: { fontSize: 12, fontFamily: 'Inter_700Bold' },
+  prayedTodayText: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    textAlign: 'right',
+    lineHeight: 18,
+  },
+
+  // create card
+  createCard: {
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    padding: 28,
+    alignItems: 'center',
+    gap: 10,
+  },
+  createPlus: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createTitle: { fontSize: 16, fontFamily: 'Inter_700Bold' },
+  createSub: { fontSize: 13, fontFamily: 'Inter_400Regular' },
+
+  // detail — streak
+  streakCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  streakLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  streakFlame: { fontSize: 20 },
+  streakText: { fontSize: 16, fontFamily: 'Inter_700Bold' },
+  streakRight: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  streakMembers: { fontSize: 13, fontFamily: 'Inter_400Regular' },
+
+  // detail — prayer chain
+  chainCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 16,
+    gap: 16,
+  },
+  chainLabel: {
+    fontSize: 11,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 1.2,
+    textAlign: 'center',
+  },
+  chainRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 0,
+  },
+  chainLine: {
+    width: 20,
+    height: 2,
+    borderRadius: 1,
+    marginHorizontal: 2,
+    alignSelf: 'center',
+    marginBottom: 32,  // offset to align with avatar center, not name/streak
+  },
+  chainName: {
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+    color: '#9D9188',
+    textAlign: 'center',
+    maxWidth: 64,
+  },
+  chainStreak: {
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#9D9188',
+    textAlign: 'center',
+  },
+  prayedCount: {
+    textAlign: 'center',
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+  },
+
+  // detail — prayed button
+  prayedBtn: {
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingVertical: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderColor: 'transparent',
+  },
+  prayedBtnText: {
+    fontSize: 17,
+    fontFamily: 'Inter_700Bold',
+    color: '#fff',
+    letterSpacing: 0.2,
+  },
+
+  // detail — prayer list
+  prayerListCard: {
+    borderRadius: 14,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  prayerListHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 14,
+    paddingBottom: 10,
+  },
+  prayerListEmoji: { fontSize: 16 },
+  prayerListLabel: {
+    fontSize: 12,
+    fontFamily: 'Inter_700Bold',
+    letterSpacing: 1,
+  },
+  prayerListItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderTopWidth: 0.5,
+  },
+  prayerListIcon: { fontSize: 14 },
+  prayerListText: { fontSize: 14, fontFamily: 'Inter_400Regular', flex: 1 },
 });
