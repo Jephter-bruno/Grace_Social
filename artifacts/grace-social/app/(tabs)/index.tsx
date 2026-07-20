@@ -14,9 +14,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AdCard } from '@/components/AdCard';
 import { DailyVerseCard } from '@/components/DailyVerseCard';
+import { HomePrayerWall } from '@/components/HomePrayerWall';
 import { NewPostModal } from '@/components/NewPostModal';
 import { PostCard } from '@/components/PostCard';
+import { RealmSpotlight } from '@/components/RealmSpotlight';
 import { StoryBar } from '@/components/StoryBar';
+import { SuggestedCommunities } from '@/components/SuggestedCommunities';
 import { SuggestedPeopleCard } from '@/components/SuggestedPeopleCard';
 import { Post, useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
@@ -86,6 +89,9 @@ export default function HomeScreen() {
       <>
         <StoryBar stories={stories} />
         <DailyVerseCard />
+        <RealmSpotlight />
+        <SuggestedCommunities />
+        <HomePrayerWall />
         <SuggestedPeopleCard />
       </>
     ),
