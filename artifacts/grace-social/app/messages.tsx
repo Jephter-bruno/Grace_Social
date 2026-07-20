@@ -103,6 +103,8 @@ export default function MessagesScreen() {
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [messageText, setMessageText] = useState('');
   const [search, setSearch] = useState('');
+  const [showNewConv, setShowNewConv] = useState(false);
+  const [newName, setNewName] = useState('');
   const inputRef = useRef<TextInput>(null);
 
   const openConversation = (conv: Conversation) => {
@@ -216,9 +218,6 @@ export default function MessagesScreen() {
       </KeyboardAvoidingView>
     );
   }
-
-  const [showNewConv, setShowNewConv] = useState(false);
-  const [newName, setNewName] = useState('');
 
   const filteredConvs = search.trim()
     ? conversations.filter((c) =>
