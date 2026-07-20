@@ -25,14 +25,30 @@ import { Post, useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { useEffect } from 'react';
 
-type FeedItem = { type: 'post'; data: Post } | { type: 'ad'; adIndex: number };
+type FeedItem =
+  | { type: 'post'; data: Post }
+  | { type: 'ad'; adIndex: number }
+  | { type: 'realms' }
+  | { type: 'communities' }
+  | { type: 'prayerwall' };
+
+// Inject the three discovery sections between posts at fixed positions
+const SECTION_AT: Record<number, FeedItem['type']> = {
+  1: 'realms',       // after 2nd post
+  3: 'communities',  // after 4th post
+  5: 'prayerwall',   // after 6th post
+};
 
 function buildFeed(posts: Post[], adEvery = 3): FeedItem[] {
   const result: FeedItem[] = [];
   let adCount = 0;
   posts.forEach((post, i) => {
     result.push({ type: 'post', data: post });
-    if ((i + 1) % adEvery === 0) {
+    // Discovery sections injected at specific post indices
+    if (SECTION_AT[i]) {
+      result.push({ type: SECTION_AT[i] } as FeedItem);
+    } else if ((i + 1) % adEvery === 0) {
+      // Skip ad on rows that already have a discovery section
       result.push({ type: 'ad', adIndex: adCount++ });
     }
   });
@@ -76,9 +92,10 @@ export default function HomeScreen() {
 
   const renderItem = useCallback(
     ({ item }: { item: FeedItem }) => {
-      if (item.type === 'ad') {
-        return <AdCard index={item.adIndex} />;
-      }
+      if (item.type === 'ad') return <AdCard index={item.adIndex} />;
+      if (item.type === 'realms') return <RealmSpotlight />;
+      if (item.type === 'communities') return <SuggestedCommunities />;
+      if (item.type === 'prayerwall') return <HomePrayerWall />;
       return <PostCard post={item.data} isActive={item.data.id === activePostId} />;
     },
     [activePostId]
@@ -89,9 +106,6 @@ export default function HomeScreen() {
       <>
         <StoryBar stories={stories} />
         <DailyVerseCard />
-        <RealmSpotlight />
-        <SuggestedCommunities />
-        <HomePrayerWall />
         <SuggestedPeopleCard />
       </>
     ),
