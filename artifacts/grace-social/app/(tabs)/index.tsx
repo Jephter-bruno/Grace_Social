@@ -142,7 +142,13 @@ export default function HomeScreen() {
 
       <FlatList
         data={feedItems}
-        keyExtractor={(item, idx) => (item.type === 'ad' ? `ad-${item.adIndex}` : item.data.id)}
+        keyExtractor={(item, idx) =>
+          item.type === 'ad'
+            ? `ad-${item.adIndex}`
+            : item.type === 'realms' || item.type === 'communities' || item.type === 'prayerwall'
+            ? `${item.type}-${idx}`
+            : item.data.id
+        }
         renderItem={renderItem}
         ListHeaderComponent={renderHeader}
         showsVerticalScrollIndicator={false}
