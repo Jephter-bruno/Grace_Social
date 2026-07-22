@@ -29,7 +29,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { POST_IMAGES } from '@/constants/images';
-import { StoryComment, useApp } from '@/context/AppContext';
+import { Story, StoryComment, StoryItem, useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 
@@ -44,9 +44,18 @@ const STORY_DURATION = 5000;
 const VIDEO_DURATION = 15000;
 const QUICK_REACTIONS = ['🙏', '🔥', '❤️', '🙌', '✝️', '😭'];
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-
 const VIEWER_COLORS = ['#D4A843', '#9B59B6', '#27AE60', '#E91E8C', '#4A90A4', '#E74C3C', '#F39C12'];
 const VIEWER_INITIALS = ['PJ', 'MK', 'DL', 'SW', 'TB', 'GM', 'RB', 'LH', 'AF', 'CE'];
+
+// ─── Gradient palettes for verse/text stories ────────────────────────────────
+const VERSE_GRADIENTS: [string, string][] = [
+  ['#1A1A2E', '#16213E'],
+  ['#0D1B2A', '#1B263B'],
+  ['#1C0A00', '#3E1C00'],
+  ['#0A1628', '#1D3461'],
+  ['#1A0A2E', '#2D1B69'],
+  ['#0A2618', '#0D5C30'],
+];
 
 // ─── Progress Bar ─────────────────────────────────────────────────────────────
 
@@ -59,16 +68,22 @@ function ProgressBar({
   const cbRef = useRef(onFinish);
   cbRef.current = onFinish;
 
+  // Start or reset progress when active/done changes
   useEffect(() => {
-    if (!active) { progress.value = done ? 1 : 0; return; }
+    if (!active) {
+      progress.value = done ? 1 : 0;
+      return;
+    }
     progress.value = 0;
     if (!paused) {
       progress.value = withTiming(1, { duration }, (finished) => {
         if (finished) runOnJS(cbRef.current)();
       });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, done]);
 
+  // Pause / resume without resetting
   useEffect(() => {
     if (!active) return;
     if (paused) {
@@ -79,9 +94,10 @@ function ProgressBar({
         if (finished) runOnJS(cbRef.current)();
       });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paused]);
 
-  const barStyle = useAnimatedStyle(() => ({ width: `${progress.value * 100}%` }));
+  const barStyle = useAnimatedStyle(() => ({ width: `${progress.value * 100}%` as any }));
 
   return (
     <View style={styles.barTrack}>
@@ -90,8 +106,113 @@ function ProgressBar({
   );
 }
 
+// ─── Video background (isolated so useVideoPlayer is only called with a real URI) ─
+
+function VideoBackground({
+  uri, paused, muted,
+}: {
+  uri: string; paused: boolean; muted: boolean;
+}) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = false;
+    p.muted = muted;
+    if (!paused) p.play();
+  });
+
+  useEffect(() => {
+    try {
+      if (paused) { player.pause(); } else { player.play(); }
+    } catch {}
+  }, [paused]);
+
+  useEffect(() => {
+    try { player.muted = muted; } catch {}
+  }, [muted]);
+
+  return (
+    <VideoView
+      player={player}
+      style={StyleSheet.absoluteFill}
+      contentFit="cover"
+      nativeControls={false}
+    />
+  );
+}
+
+// ─── Story background (handles all media types) ───────────────────────────────
+
+function StoryBackground({
+  item, story, paused, muted,
+}: {
+  item: StoryItem; story: Story; paused: boolean; muted: boolean;
+}) {
+  if (item.type === 'video' && item.videoUri) {
+    return (
+      <VideoBackground uri={item.videoUri} paused={paused} muted={muted} />
+    );
+  }
+
+  if (item.imageUri) {
+    return (
+      <Image
+        source={{ uri: item.imageUri }}
+        style={StyleSheet.absoluteFill}
+        contentFit="cover"
+      />
+    );
+  }
+
+  if (item.imageIndex !== undefined && item.imageIndex !== null && POST_IMAGES[item.imageIndex]) {
+    return (
+      <Image
+        source={POST_IMAGES[item.imageIndex]}
+        style={StyleSheet.absoluteFill}
+        contentFit="cover"
+      />
+    );
+  }
+
+  // verse / text / fallback — rich gradient background
+  const gradIdx = Math.abs(story.id.charCodeAt(0) ?? 0) % VERSE_GRADIENTS.length;
+  const [c1, c2] = VERSE_GRADIENTS[gradIdx];
+  return (
+    <LinearGradient
+      colors={[c1, c2, '#000']}
+      locations={[0, 0.65, 1]}
+      style={StyleSheet.absoluteFill}
+    />
+  );
+}
+
+// ─── Verse / Text content overlay ────────────────────────────────────────────
+
+function VerseOverlay({ item }: { item: StoryItem }) {
+  if (!item.verseText && item.type !== 'text') return null;
+
+  const isVerse = item.type === 'verse' || !!item.verseReference;
+
+  return (
+    <View style={styles.verseOverlay} pointerEvents="none">
+      {isVerse && (
+        <View style={styles.verseBadge}>
+          <Feather name="book-open" size={13} color="#D4A843" />
+          <Text style={styles.verseBadgeText}>Bible Verse</Text>
+        </View>
+      )}
+      <View style={styles.verseCard}>
+        {isVerse && <View style={styles.verseAccentBar} />}
+        <Text style={[styles.verseText, !isVerse && styles.textStoryBody]}>
+          {item.verseText ? `"${item.verseText}"` : ''}
+        </Text>
+        {item.verseReference ? (
+          <Text style={styles.verseRef}>— {item.verseReference}</Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 // ─── Center Heart Burst (double-tap like) ─────────────────────────────────────
-// Always mounted so animation can complete; driven by opacity
 
 function HeartBurst({ visible }: { visible: boolean }) {
   const scale = useSharedValue(0);
@@ -127,21 +248,17 @@ function HeartBurst({ visible }: { visible: boolean }) {
 // ─── Analytics Drawer ─────────────────────────────────────────────────────────
 
 function AnalyticsDrawer({
-  visible, onClose, story,
+  onClose, story,
 }: {
-  visible: boolean;
   onClose: () => void;
-  story: { viewCount: number; likeCount: number; shareCount: number; storyComments: StoryComment[] };
+  story: Story;
 }) {
   const insets = useSafeAreaInsets();
   const viewerCount = Math.min(story.viewCount, VIEWER_INITIALS.length);
 
   return (
     <View style={[styles.analyticsDrawer, { paddingBottom: insets.bottom + 20 }]}>
-      {/* Handle */}
       <View style={styles.analyticsHandle} />
-
-      {/* Header */}
       <View style={styles.analyticsHeader}>
         <View>
           <Text style={styles.analyticsTitle}>Story Insights</Text>
@@ -152,7 +269,6 @@ function AnalyticsDrawer({
         </TouchableOpacity>
       </View>
 
-      {/* Stats cards */}
       <View style={styles.statsRow}>
         <View style={[styles.statCard, { borderColor: 'rgba(255,255,255,0.15)' }]}>
           <View style={[styles.statIconWrap, { backgroundColor: 'rgba(255,255,255,0.1)' }]}>
@@ -177,21 +293,17 @@ function AnalyticsDrawer({
         </View>
       </View>
 
-      {/* Viewers row */}
       {viewerCount > 0 && (
         <View style={styles.viewersSection}>
           <View style={styles.viewersFaceRow}>
             {Array.from({ length: viewerCount }).map((_, i) => (
               <View
                 key={i}
-                style={[
-                  styles.viewerFace,
-                  {
-                    backgroundColor: VIEWER_COLORS[i % VIEWER_COLORS.length],
-                    marginLeft: i === 0 ? 0 : -10,
-                    zIndex: viewerCount - i,
-                  },
-                ]}
+                style={[styles.viewerFace, {
+                  backgroundColor: VIEWER_COLORS[i % VIEWER_COLORS.length],
+                  marginLeft: i === 0 ? 0 : -10,
+                  zIndex: viewerCount - i,
+                }]}
               >
                 <Text style={styles.viewerFaceText}>{VIEWER_INITIALS[i]}</Text>
               </View>
@@ -209,12 +321,8 @@ function AnalyticsDrawer({
       )}
 
       <View style={styles.drawerDivider} />
-
-      {/* Comments */}
       <Text style={styles.commentsHeading}>
-        {story.storyComments.length > 0
-          ? `Replies · ${story.storyComments.length}`
-          : 'No replies yet'}
+        {story.storyComments.length > 0 ? `Replies · ${story.storyComments.length}` : 'No replies yet'}
       </Text>
 
       {story.storyComments.length > 0 ? (
@@ -247,20 +355,22 @@ function AnalyticsDrawer({
 // ─── Main StoryViewer ─────────────────────────────────────────────────────────
 
 interface StoryViewerProps {
-  visible: boolean;
+  stories: Story[];   // receive viewable stories directly to avoid re-filtering
   startIndex: number;
   onClose: () => void;
 }
 
-export function StoryViewer({ visible, startIndex, onClose }: StoryViewerProps) {
-  const { stories, markStorySeen, toggleStoryLike, addStoryComment,
+export function StoryViewer({ stories: viewableStories, startIndex, onClose }: StoryViewerProps) {
+  const { markStorySeen, toggleStoryLike, addStoryComment,
     incrementStoryShare, recordStoryView } = useApp();
   const { currentUser } = useAuth();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
 
-  const viewableStories = stories.filter((s) => s.items.length > 0);
-  const [userIdx, setUserIdx] = useState(startIndex);
+  // Clamp startIndex defensively
+  const safeStart = Math.max(0, Math.min(startIndex, viewableStories.length - 1));
+
+  const [userIdx, setUserIdx] = useState(safeStart);
   const [itemIdx, setItemIdx] = useState(0);
   const [paused, setPaused] = useState(false);
   const [showCommentInput, setShowCommentInput] = useState(false);
@@ -284,41 +394,18 @@ export function StoryViewer({ visible, startIndex, onClose }: StoryViewerProps) 
   const currentStory = viewableStories[userIdx];
   const currentItem = currentStory?.items[itemIdx];
   const isVideo = currentItem?.type === 'video' && !!currentItem?.videoUri;
-  const isOwnStory = currentStory?.isOwn;
-  const isPaused = paused || showCommentInput || showAnalytics;
+  const isOwnStory = !!currentStory?.isOwn;
+  const isPaused = paused || showCommentInput || showAnalytics || showStoryAd;
 
-  // ─── Video player — always created but only used when isVideo ────────────
-  const videoPlayer = useVideoPlayer(null);
-
+  // Track views
   useEffect(() => {
-    if (!visible || !isVideo || !currentItem?.videoUri) {
-      // Only pause if the player might be playing (avoid calling on null-source player on web)
-      if (isVideo) {
-        try { videoPlayer.pause(); } catch {}
-      }
-      return;
-    }
-    try {
-      videoPlayer.replace({ uri: currentItem.videoUri });
-      if (!isPaused) videoPlayer.play();
-    } catch (e) {
-      console.warn('[StoryViewer] Video error:', e);
-    }
-  }, [visible, currentItem?.id, isVideo]);
+    if (currentStory) recordStoryView(currentStory.id);
+  }, [userIdx]);
 
-  useEffect(() => {
-    if (!isVideo) return;
-    try {
-      if (isPaused) { videoPlayer.pause(); } else { videoPlayer.play(); }
-    } catch {}
-  }, [isPaused, isVideo]);
+  const adProgressStyle = useAnimatedStyle(() => ({ width: `${adProgress.value * 100}%` as any }));
+  const likeAnimStyle = useAnimatedStyle(() => ({ transform: [{ scale: likeScale.value }] }));
 
-  useEffect(() => {
-    if (!isVideo) return;
-    try { videoPlayer.muted = videoMuted; } catch {}
-  }, [videoMuted, isVideo]);
-
-  // ─── Ad logic ─────────────────────────────────────────────────────────────
+  // ─── Ad logic ──────────────────────────────────────────────────────────────
   const dismissAd = useCallback((nextUser: number) => {
     setShowStoryAd(false);
     adProgress.value = 0;
@@ -328,63 +415,59 @@ export function StoryViewer({ visible, startIndex, onClose }: StoryViewerProps) 
     else onClose();
   }, [viewableStories.length, onClose]);
 
-  // ─── Navigation ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (adTimerRef.current) clearTimeout(adTimerRef.current);
+      if (adCountdownRef.current) clearInterval(adCountdownRef.current);
+    };
+  }, []);
+
+  // ─── Navigation ────────────────────────────────────────────────────────────
   const advance = useCallback(() => {
-    if (!currentStory) return;
+    if (!currentStory) { onClose(); return; }
     const nextItem = itemIdx + 1;
     if (nextItem < currentStory.items.length) {
       setItemIdx(nextItem);
+      return;
+    }
+    // End of this user's story
+    markStorySeen(currentStory.id);
+    const nextUser = userIdx + 1;
+    if (nextUser < viewableStories.length && userIdx % 2 === 1) {
+      // Show ad between every 2nd user
+      setPendingNextUser(nextUser);
+      setStoryAdIndex((i) => i + 1);
+      setAdCountdown(Math.ceil(STORY_AD_DURATION / 1000));
+      adProgress.value = 0;
+      adProgress.value = withTiming(1, { duration: STORY_AD_DURATION });
+      setShowStoryAd(true);
+      if (adTimerRef.current) clearTimeout(adTimerRef.current);
+      adTimerRef.current = setTimeout(() => dismissAd(nextUser), STORY_AD_DURATION);
+      let rem = Math.ceil(STORY_AD_DURATION / 1000);
+      if (adCountdownRef.current) clearInterval(adCountdownRef.current);
+      adCountdownRef.current = setInterval(() => {
+        rem -= 1;
+        setAdCountdown(rem);
+        if (rem <= 0 && adCountdownRef.current) clearInterval(adCountdownRef.current);
+      }, 1000);
+    } else if (nextUser < viewableStories.length) {
+      setUserIdx(nextUser);
+      setItemIdx(0);
     } else {
-      markStorySeen(currentStory.id);
-      const nextUser = userIdx + 1;
-      if (nextUser < viewableStories.length && userIdx % 2 === 1) {
-        setPendingNextUser(nextUser);
-        setStoryAdIndex((i) => i + 1);
-        setAdCountdown(Math.ceil(STORY_AD_DURATION / 1000));
-        adProgress.value = 0;
-        adProgress.value = withTiming(1, { duration: STORY_AD_DURATION });
-        setShowStoryAd(true);
-        if (adTimerRef.current) clearTimeout(adTimerRef.current);
-        adTimerRef.current = setTimeout(() => dismissAd(nextUser), STORY_AD_DURATION);
-        let rem = Math.ceil(STORY_AD_DURATION / 1000);
-        if (adCountdownRef.current) clearInterval(adCountdownRef.current);
-        adCountdownRef.current = setInterval(() => {
-          rem -= 1;
-          setAdCountdown(rem);
-          if (rem <= 0 && adCountdownRef.current) clearInterval(adCountdownRef.current);
-        }, 1000);
-      } else if (nextUser < viewableStories.length) {
-        setUserIdx(nextUser); setItemIdx(0);
-      } else {
-        onClose();
-      }
+      onClose();
     }
   }, [currentStory, itemIdx, userIdx, viewableStories.length, markStorySeen, onClose, adProgress, dismissAd]);
 
   const retreat = useCallback(() => {
-    if (itemIdx - 1 >= 0) setItemIdx(itemIdx - 1);
-    else if (userIdx - 1 >= 0) { setUserIdx(userIdx - 1); setItemIdx(0); }
+    if (itemIdx > 0) {
+      setItemIdx(itemIdx - 1);
+    } else if (userIdx > 0) {
+      setUserIdx(userIdx - 1);
+      setItemIdx(0);
+    }
   }, [itemIdx, userIdx]);
 
-  // ─── Track views & reset index on open ────────────────────────────────────
-  useEffect(() => {
-    if (visible && currentStory) recordStoryView(currentStory.id);
-  }, [visible, userIdx]);
-
-  useEffect(() => {
-    if (visible) {
-      setUserIdx(Math.min(startIndex, Math.max(0, viewableStories.length - 1)));
-      setItemIdx(0);
-      setShowCommentInput(false);
-      setShowAnalytics(false);
-      setShowStoryAd(false);
-    }
-  }, [visible, startIndex]);
-
-  const adProgressStyle = useAnimatedStyle(() => ({ width: `${adProgress.value * 100}%` as any }));
-  const likeAnimStyle = useAnimatedStyle(() => ({ transform: [{ scale: likeScale.value }] }));
-
-  // ─── Handlers ─────────────────────────────────────────────────────────────
+  // ─── Handlers ──────────────────────────────────────────────────────────────
   const handlePressIn = () => {
     pressStart.current = Date.now();
     setPaused(true);
@@ -403,7 +486,6 @@ export function StoryViewer({ visible, startIndex, onClose }: StoryViewerProps) 
         toggleStoryLike(currentStory.id);
       }
       setHeartVisible(false);
-      // next tick ensures animation re-triggers even on consecutive double-taps
       setTimeout(() => {
         setHeartVisible(true);
         setTimeout(() => setHeartVisible(false), 900);
@@ -453,360 +535,330 @@ export function StoryViewer({ visible, startIndex, onClose }: StoryViewerProps) 
     setShowCommentInput(false);
   };
 
-  // ─── Render ───────────────────────────────────────────────────────────────
-  // Always render the Modal so it can animate; guard content inside
+  // ─── Guard: no stories ─────────────────────────────────────────────────────
+  if (!currentStory || !currentItem) {
+    // Shouldn't happen since StoryBar guards this, but safety close
+    onClose();
+    return null;
+  }
+
   const topPad = isWeb ? 67 : insets.top;
 
   return (
     <>
-      <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-        {/* Guard content — keeps hooks above, data-dependent render inside */}
-        {currentStory ? (
-          <View style={styles.container}>
+      <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+        <View style={styles.container}>
 
-            {/* ── Background media ── */}
-            {isVideo && currentItem?.videoUri ? (
-              <VideoView
-                player={videoPlayer}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-                nativeControls={false}
+          {/* ── Background media ── */}
+          <StoryBackground
+            item={currentItem}
+            story={currentStory}
+            paused={isPaused}
+            muted={videoMuted}
+          />
+
+          {/* ── Dark scrim ── */}
+          <View style={[StyleSheet.absoluteFill, styles.scrim]} />
+
+          {/* ── Top gradient ── */}
+          <LinearGradient
+            colors={['rgba(0,0,0,0.75)', 'transparent']}
+            style={[styles.topGrad, { height: 130 + topPad }]}
+          />
+
+          {/* ── Progress bars ── */}
+          <View style={[styles.barsRow, { top: topPad + 6 }]}>
+            {currentStory.items.map((item, i) => (
+              <ProgressBar
+                key={`${currentStory.id}-${i}`}
+                active={i === itemIdx}
+                done={i < itemIdx}
+                paused={isPaused}
+                duration={item.type === 'video' ? VIDEO_DURATION : STORY_DURATION}
+                isVideo={item.type === 'video'}
+                onFinish={advance}
               />
-            ) : currentItem?.imageUri ? (
-              <Image
-                source={{ uri: currentItem.imageUri }}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-              />
-            ) : currentItem?.imageIndex !== undefined && currentItem.imageIndex !== null ? (
-              <Image
-                source={POST_IMAGES[currentItem.imageIndex]}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-              />
-            ) : (
-              <LinearGradient
-                colors={[currentStory.userColor, '#000']}
-                style={StyleSheet.absoluteFill}
-              />
-            )}
+            ))}
+          </View>
 
-            {/* ── Dark scrim ── */}
-            <View style={[StyleSheet.absoluteFill, styles.scrim]} />
-
-            {/* ── Top gradient ── */}
-            <LinearGradient
-              colors={['rgba(0,0,0,0.65)', 'transparent']}
-              style={[styles.topGrad, { height: 130 + topPad }]}
-            />
-
-            {/* ── Progress bars ── */}
-            <View style={[styles.barsRow, { top: topPad + 6 }]}>
-              {currentStory.items.map((item, i) => (
-                <ProgressBar
-                  key={`${userIdx}-${i}`}
-                  active={i === itemIdx}
-                  done={i < itemIdx}
-                  paused={isPaused}
-                  duration={item.type === 'video' ? VIDEO_DURATION : STORY_DURATION}
-                  isVideo={item.type === 'video'}
-                  onFinish={advance}
-                />
-              ))}
-            </View>
-
-            {/* ── User header ── */}
-            <View style={[styles.userHeader, { top: topPad + 20 }]}>
-              <View style={[styles.avatarRing, { borderColor: currentStory.userColor }]}>
-                <View style={[styles.avatarInner, { backgroundColor: currentStory.userColor }]}>
-                  <Text style={styles.avatarText}>{currentStory.userInitials}</Text>
-                </View>
+          {/* ── User header ── */}
+          <View style={[styles.userHeader, { top: topPad + 22 }]}>
+            <View style={[styles.avatarRing, { borderColor: currentStory.userColor }]}>
+              <View style={[styles.avatarInner, { backgroundColor: currentStory.userColor }]}>
+                <Text style={styles.avatarText}>{currentStory.userInitials}</Text>
               </View>
-              <View style={styles.userMeta}>
-                <View style={styles.userNameRow}>
-                  <Text style={styles.userName}>
-                    {isOwnStory ? 'Your Story' : currentStory.userName}
-                  </Text>
-                  {isVideo && (
-                    <View style={styles.videoBadge}>
-                      <Feather name="video" size={10} color="#fff" />
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.userTime}>{currentItem?.timestamp ?? 'Just now'}</Text>
-              </View>
-
-              {isVideo && (
-                <TouchableOpacity
-                  onPress={() => setVideoMuted((m) => !m)}
-                  style={styles.muteBtn}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Feather name={videoMuted ? 'volume-x' : 'volume-2'} size={20} color="#fff" />
-                </TouchableOpacity>
-              )}
-
-              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                <Feather name="x" size={22} color="#fff" />
-              </TouchableOpacity>
             </View>
-
-            {/* ── Verse / text overlay ── */}
-            {currentItem?.verseText ? (
-              <View style={styles.verseOverlay}>
-                <View style={styles.verseBox}>
-                  <Feather name="book-open" size={18} color="#D4A843" />
-                  <Text style={styles.verseText}>"{currentItem.verseText}"</Text>
-                  {currentItem.verseReference ? (
-                    <Text style={styles.verseRef}>— {currentItem.verseReference}</Text>
-                  ) : null}
-                </View>
-              </View>
-            ) : null}
-
-            {/* ── Double-tap heart ── */}
-            <HeartBurst visible={heartVisible} />
-
-            {/* ── Tap zones: left = retreat, right = advance + double-tap ── */}
-            <View
-              style={styles.tapZones}
-              pointerEvents={showCommentInput ? 'none' : 'box-none'}
-            >
-              <Pressable
-                style={styles.tapLeft}
-                onPressIn={handlePressIn}
-                onPressOut={() => handlePressOut(retreat)}
-              />
-              <Pressable
-                style={styles.tapRight}
-                onPressIn={handlePressIn}
-                onPressOut={() => {
-                  handlePressOut(advance);
-                  handleDoubleTap();
-                }}
-              />
-            </View>
-
-            {/* ── Bottom gradient ── */}
-            <LinearGradient
-              colors={['transparent', 'rgba(0,0,0,0.82)']}
-              style={styles.bottomGrad}
-            />
-
-            {/* ── Footer ── */}
-            {!showCommentInput ? (
-              <View style={[styles.footer, { paddingBottom: isWeb ? 20 : insets.bottom + 10 }]}>
-                {isOwnStory ? (
-                  /* Own story: analytics row */
-                  <TouchableOpacity
-                    style={styles.ownFooterRow}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setShowAnalytics(true);
-                    }}
-                    activeOpacity={0.8}
-                  >
-                    <View style={styles.ownViewerFaces}>
-                      {Array.from({ length: Math.min(currentStory.viewCount, 3) }).map((_, i) => (
-                        <View
-                          key={i}
-                          style={[
-                            styles.ownViewerFace,
-                            { backgroundColor: VIEWER_COLORS[i % VIEWER_COLORS.length], marginLeft: i === 0 ? 0 : -6 },
-                          ]}
-                        >
-                          <Text style={styles.ownViewerFaceText}>{VIEWER_INITIALS[i]}</Text>
-                        </View>
-                      ))}
-                    </View>
-                    <View style={styles.ownViewerInfo}>
-                      <Text style={styles.ownViewerCount}>{currentStory.viewCount} views</Text>
-                      <Text style={styles.ownViewerSub}>Tap for insights</Text>
-                    </View>
-                    <View style={styles.ownStatsRight}>
-                      <View style={styles.ownStatPill}>
-                        <AntDesign name="heart" size={12} color="#E91E8C" />
-                        <Text style={styles.ownStatPillText}>{currentStory.likeCount}</Text>
-                      </View>
-                      <View style={styles.ownStatPill}>
-                        <Feather name="send" size={12} color="#4A90A4" />
-                        <Text style={styles.ownStatPillText}>{currentStory.shareCount}</Text>
-                      </View>
-                      <TouchableOpacity
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          setShowAnalytics(true);
-                        }}
-                        style={styles.analyticsIconBtn}
-                      >
-                        <Feather name="bar-chart-2" size={20} color="#fff" />
-                      </TouchableOpacity>
-                    </View>
-                  </TouchableOpacity>
-                ) : (
-                  /* Other story: like + reply + share */
-                  <View style={styles.engagementRow}>
-                    <TouchableOpacity
-                      style={styles.replyInputBtn}
-                      activeOpacity={0.85}
-                      onPress={() => {
-                        setShowCommentInput(true);
-                        setTimeout(() => commentInputRef.current?.focus(), 100);
-                      }}
-                    >
-                      <Text style={styles.replyPlaceholder}>
-                        Reply to {currentStory.userName.split(' ')[0]}…
-                      </Text>
-                    </TouchableOpacity>
-
-                    <Animated.View style={likeAnimStyle}>
-                      <TouchableOpacity
-                        onPress={handleLike}
-                        style={styles.actionBtn}
-                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                      >
-                        <AntDesign
-                          name={(currentStory.isLikedByMe ? 'heart' : 'hearto') as any}
-                          size={26}
-                          color={currentStory.isLikedByMe ? '#E91E8C' : '#fff'}
-                        />
-                      </TouchableOpacity>
-                    </Animated.View>
-
-                    <TouchableOpacity
-                      onPress={handleShare}
-                      style={styles.actionBtn}
-                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                    >
-                      <Feather name="send" size={24} color="#fff" />
-                    </TouchableOpacity>
+            <View style={styles.userMeta}>
+              <View style={styles.userNameRow}>
+                <Text style={styles.userName}>
+                  {isOwnStory ? 'Your Story' : currentStory.userName}
+                </Text>
+                {isVideo && (
+                  <View style={styles.videoBadge}>
+                    <Feather name="video" size={10} color="#fff" />
+                    <Text style={styles.videoBadgeText}>Video</Text>
                   </View>
                 )}
               </View>
-            ) : null}
+              <Text style={styles.userTime}>{currentItem.timestamp ?? 'Just now'}</Text>
+            </View>
 
-            {/* ── Comment input overlay ── */}
-            {showCommentInput ? (
-              <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.commentOverlay}
+            {isVideo && (
+              <TouchableOpacity
+                onPress={() => setVideoMuted((m) => !m)}
+                style={styles.muteBtn}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <TouchableOpacity
-                  style={StyleSheet.absoluteFill}
-                  onPress={() => setShowCommentInput(false)}
-                  activeOpacity={1}
-                />
-                <View style={[styles.commentPanel, { paddingBottom: isWeb ? 16 : insets.bottom + 8 }]}>
-                  {/* Quick reactions */}
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.reactionsRow}
-                  >
-                    {QUICK_REACTIONS.map((emoji) => (
-                      <TouchableOpacity
-                        key={emoji}
-                        style={styles.reactionChip}
-                        onPress={() => handleReaction(emoji)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.reactionEmoji}>{emoji}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
+                <Feather name={videoMuted ? 'volume-x' : 'volume-2'} size={20} color="#fff" />
+              </TouchableOpacity>
+            )}
 
-                  {/* Input row */}
-                  <View style={styles.commentInputRow}>
-                    <View style={[styles.myAvatar, { backgroundColor: currentUser?.color ?? '#4A90A4' }]}>
-                      <Text style={styles.myAvatarText}>{currentUser?.initials ?? 'ME'}</Text>
-                    </View>
-                    <TextInput
-                      ref={commentInputRef}
-                      style={styles.commentInput}
-                      value={commentText}
-                      onChangeText={setCommentText}
-                      placeholder={`Reply to ${currentStory.userName.split(' ')[0]}…`}
-                      placeholderTextColor="rgba(255,255,255,0.4)"
-                      returnKeyType="send"
-                      onSubmitEditing={handleSendComment}
-                      autoFocus
-                      multiline
-                      maxLength={200}
-                    />
-                    <TouchableOpacity
-                      onPress={handleSendComment}
-                      disabled={!commentText.trim()}
-                      style={[styles.sendBtn, { opacity: commentText.trim() ? 1 : 0.35 }]}
-                    >
-                      <Feather name="send" size={18} color="#fff" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </KeyboardAvoidingView>
-            ) : null}
-
-            {/* ── Story Ad Overlay ── */}
-            {showStoryAd ? (() => {
-              const ad = STORY_ADS[storyAdIndex % STORY_ADS.length];
-              const isGoogle = ad.network === 'google';
-              return (
-                <View style={[StyleSheet.absoluteFill, styles.adOverlay]} pointerEvents="box-none">
-                  <LinearGradient
-                    colors={['rgba(0,0,0,0.92)', 'rgba(0,0,0,0.75)', 'rgba(0,0,0,0.92)']}
-                    style={StyleSheet.absoluteFill}
-                  />
-                  <View style={[styles.adProgressTrack, { top: topPad + 8 }]}>
-                    <Animated.View style={[styles.adProgressFill, adProgressStyle]} />
-                  </View>
-                  <View style={[styles.adTopRow, { top: topPad + 20 }]}>
-                    <View style={[styles.adNetworkBadge, { backgroundColor: isGoogle ? '#FBBC04' : '#1877F2' }]}>
-                      <Text style={styles.adNetworkText}>{isGoogle ? 'Ad' : 'Sponsored'}</Text>
-                    </View>
-                    <Text style={styles.adNetworkLabel}>{isGoogle ? 'Google AdMob' : 'Facebook Audience Network'}</Text>
-                    <TouchableOpacity
-                      style={styles.adSkipBtn}
-                      onPress={() => pendingNextUser !== null && dismissAd(pendingNextUser)}
-                    >
-                      <Text style={styles.adSkipText}>{adCountdown > 0 ? `${adCountdown}s` : 'Skip'}</Text>
-                      {adCountdown <= 0 && <Feather name="chevron-right" size={12} color="rgba(255,255,255,0.8)" />}
-                    </TouchableOpacity>
-                  </View>
-                  <View style={styles.adBody}>
-                    <View style={[styles.adIconWrap, { backgroundColor: ad.accentColor + '28' }]}>
-                      <Feather name={ad.iconName as any} size={44} color={ad.accentColor} />
-                    </View>
-                    <Text style={styles.adAdvertiser}>{ad.advertiser}</Text>
-                    <Text style={styles.adHeadline}>{ad.headline}</Text>
-                    <TouchableOpacity
-                      style={[styles.adCtaBtn, { backgroundColor: isGoogle ? '#FBBC04' : '#1877F2' }]}
-                      activeOpacity={0.85}
-                    >
-                      <Text style={[styles.adCtaText, { color: isGoogle ? '#1a1a1a' : '#fff' }]}>{ad.ctaText}</Text>
-                      <Feather name="external-link" size={13} color={isGoogle ? '#1a1a1a' : '#fff'} />
-                    </TouchableOpacity>
-                  </View>
-                  <View style={[styles.adFooter, { paddingBottom: isWeb ? 24 : insets.bottom + 12 }]}>
-                    <TouchableOpacity
-                      style={styles.adLearnMore}
-                      onPress={() => pendingNextUser !== null && dismissAd(pendingNextUser)}
-                    >
-                      <Feather name="chevrons-up" size={18} color="rgba(255,255,255,0.7)" />
-                      <Text style={styles.adLearnMoreText}>Swipe up to learn more</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              );
-            })() : null}
-
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Feather name="x" size={22} color="#fff" />
+            </TouchableOpacity>
           </View>
-        ) : null}
+
+          {/* ── Verse / text overlay ── */}
+          <VerseOverlay item={currentItem} />
+
+          {/* ── Double-tap heart ── */}
+          <HeartBurst visible={heartVisible} />
+
+          {/* ── Tap zones ── */}
+          <View
+            style={styles.tapZones}
+            pointerEvents={showCommentInput ? 'none' : 'box-none'}
+          >
+            <Pressable
+              style={styles.tapLeft}
+              onPressIn={handlePressIn}
+              onPressOut={() => handlePressOut(retreat)}
+            />
+            <Pressable
+              style={styles.tapRight}
+              onPressIn={handlePressIn}
+              onPressOut={() => {
+                handlePressOut(advance);
+                handleDoubleTap();
+              }}
+            />
+          </View>
+
+          {/* ── Bottom gradient ── */}
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.85)']}
+            style={styles.bottomGrad}
+          />
+
+          {/* ── Footer ── */}
+          {!showCommentInput && !showStoryAd ? (
+            <View style={[styles.footer, { paddingBottom: isWeb ? 20 : insets.bottom + 10 }]}>
+              {isOwnStory ? (
+                <TouchableOpacity
+                  style={styles.ownFooterRow}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setShowAnalytics(true);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.ownViewerFaces}>
+                    {Array.from({ length: Math.min(currentStory.viewCount, 3) }).map((_, i) => (
+                      <View
+                        key={i}
+                        style={[styles.ownViewerFace, {
+                          backgroundColor: VIEWER_COLORS[i % VIEWER_COLORS.length],
+                          marginLeft: i === 0 ? 0 : -6,
+                        }]}
+                      >
+                        <Text style={styles.ownViewerFaceText}>{VIEWER_INITIALS[i]}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  <View style={styles.ownViewerInfo}>
+                    <Text style={styles.ownViewerCount}>{currentStory.viewCount} views</Text>
+                    <Text style={styles.ownViewerSub}>Tap for insights</Text>
+                  </View>
+                  <View style={styles.ownStatsRight}>
+                    <View style={styles.ownStatPill}>
+                      <AntDesign name="heart" size={12} color="#E91E8C" />
+                      <Text style={styles.ownStatPillText}>{currentStory.likeCount}</Text>
+                    </View>
+                    <View style={styles.ownStatPill}>
+                      <Feather name="send" size={12} color="#4A90A4" />
+                      <Text style={styles.ownStatPillText}>{currentStory.shareCount}</Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setShowAnalytics(true);
+                      }}
+                      style={styles.analyticsIconBtn}
+                    >
+                      <Feather name="bar-chart-2" size={20} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.engagementRow}>
+                  <TouchableOpacity
+                    style={styles.replyInputBtn}
+                    activeOpacity={0.85}
+                    onPress={() => {
+                      setShowCommentInput(true);
+                      setTimeout(() => commentInputRef.current?.focus(), 100);
+                    }}
+                  >
+                    <Text style={styles.replyPlaceholder}>
+                      Reply to {currentStory.userName.split(' ')[0]}…
+                    </Text>
+                  </TouchableOpacity>
+
+                  <Animated.View style={likeAnimStyle}>
+                    <TouchableOpacity
+                      onPress={handleLike}
+                      style={styles.actionBtn}
+                      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    >
+                      <AntDesign
+                        name={(currentStory.isLikedByMe ? 'heart' : 'hearto') as any}
+                        size={26}
+                        color={currentStory.isLikedByMe ? '#E91E8C' : '#fff'}
+                      />
+                    </TouchableOpacity>
+                  </Animated.View>
+
+                  <TouchableOpacity
+                    onPress={handleShare}
+                    style={styles.actionBtn}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <Feather name="send" size={24} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          ) : null}
+
+          {/* ── Comment input overlay ── */}
+          {showCommentInput ? (
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={styles.commentOverlay}
+            >
+              <TouchableOpacity
+                style={StyleSheet.absoluteFill}
+                onPress={() => setShowCommentInput(false)}
+                activeOpacity={1}
+              />
+              <View style={[styles.commentPanel, { paddingBottom: isWeb ? 16 : insets.bottom + 8 }]}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.reactionsRow}
+                >
+                  {QUICK_REACTIONS.map((emoji) => (
+                    <TouchableOpacity
+                      key={emoji}
+                      style={styles.reactionChip}
+                      onPress={() => handleReaction(emoji)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.reactionEmoji}>{emoji}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+
+                <View style={styles.commentInputRow}>
+                  <View style={[styles.myAvatar, { backgroundColor: currentUser?.color ?? '#4A90A4' }]}>
+                    <Text style={styles.myAvatarText}>{currentUser?.initials ?? 'ME'}</Text>
+                  </View>
+                  <TextInput
+                    ref={commentInputRef}
+                    style={styles.commentInput}
+                    value={commentText}
+                    onChangeText={setCommentText}
+                    placeholder={`Reply to ${currentStory.userName.split(' ')[0]}…`}
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    returnKeyType="send"
+                    onSubmitEditing={handleSendComment}
+                    autoFocus
+                    multiline
+                    maxLength={200}
+                  />
+                  <TouchableOpacity
+                    onPress={handleSendComment}
+                    disabled={!commentText.trim()}
+                    style={[styles.sendBtn, { opacity: commentText.trim() ? 1 : 0.35 }]}
+                  >
+                    <Feather name="send" size={18} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          ) : null}
+
+          {/* ── Story Ad Overlay ── */}
+          {showStoryAd ? (() => {
+            const ad = STORY_ADS[storyAdIndex % STORY_ADS.length];
+            const isGoogle = ad.network === 'google';
+            return (
+              <View style={[StyleSheet.absoluteFill, styles.adOverlay]} pointerEvents="box-none">
+                <LinearGradient
+                  colors={['rgba(0,0,0,0.92)', 'rgba(0,0,0,0.75)', 'rgba(0,0,0,0.92)']}
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={[styles.adProgressTrack, { top: topPad + 8 }]}>
+                  <Animated.View style={[styles.adProgressFill, adProgressStyle]} />
+                </View>
+                <View style={[styles.adTopRow, { top: topPad + 20 }]}>
+                  <View style={[styles.adNetworkBadge, { backgroundColor: isGoogle ? '#FBBC04' : '#1877F2' }]}>
+                    <Text style={styles.adNetworkText}>{isGoogle ? 'Ad' : 'Sponsored'}</Text>
+                  </View>
+                  <Text style={styles.adNetworkLabel}>{isGoogle ? 'Google AdMob' : 'Facebook Audience Network'}</Text>
+                  <TouchableOpacity
+                    style={styles.adSkipBtn}
+                    onPress={() => pendingNextUser !== null && dismissAd(pendingNextUser)}
+                  >
+                    <Text style={styles.adSkipText}>{adCountdown > 0 ? `${adCountdown}s` : 'Skip'}</Text>
+                    {adCountdown <= 0 && <Feather name="chevron-right" size={12} color="rgba(255,255,255,0.8)" />}
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.adBody}>
+                  <View style={[styles.adIconWrap, { backgroundColor: ad.accentColor + '28' }]}>
+                    <Feather name={ad.iconName as any} size={44} color={ad.accentColor} />
+                  </View>
+                  <Text style={styles.adAdvertiser}>{ad.advertiser}</Text>
+                  <Text style={styles.adHeadline}>{ad.headline}</Text>
+                  <TouchableOpacity
+                    style={[styles.adCtaBtn, { backgroundColor: isGoogle ? '#FBBC04' : '#1877F2' }]}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.adCtaText, { color: isGoogle ? '#1a1a1a' : '#fff' }]}>{ad.ctaText}</Text>
+                    <Feather name="external-link" size={13} color={isGoogle ? '#1a1a1a' : '#fff'} />
+                  </TouchableOpacity>
+                </View>
+                <View style={[styles.adFooter, { paddingBottom: isWeb ? 24 : insets.bottom + 12 }]}>
+                  <TouchableOpacity
+                    style={styles.adLearnMore}
+                    onPress={() => pendingNextUser !== null && dismissAd(pendingNextUser)}
+                  >
+                    <Feather name="chevrons-up" size={18} color="rgba(255,255,255,0.7)" />
+                    <Text style={styles.adLearnMoreText}>Swipe up to learn more</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            );
+          })() : null}
+
+        </View>
       </Modal>
 
-      {/* ── Analytics Modal (separate — no nested Modal issue) ── */}
+      {/* ── Analytics Modal (separate layer, avoids nested-Modal issues) ── */}
       <Modal
-        visible={visible && !!isOwnStory && showAnalytics}
+        visible={!!isOwnStory && showAnalytics}
         transparent
-        animationType="none"
+        animationType="slide"
         onRequestClose={() => setShowAnalytics(false)}
       >
         <TouchableOpacity
@@ -814,13 +866,10 @@ export function StoryViewer({ visible, startIndex, onClose }: StoryViewerProps) 
           activeOpacity={1}
           onPress={() => setShowAnalytics(false)}
         />
-        {currentStory ? (
-          <AnalyticsDrawer
-            visible={showAnalytics}
-            onClose={() => setShowAnalytics(false)}
-            story={currentStory}
-          />
-        ) : null}
+        <AnalyticsDrawer
+          onClose={() => setShowAnalytics(false)}
+          story={currentStory}
+        />
       </Modal>
     </>
   );
@@ -830,7 +879,7 @@ export function StoryViewer({ visible, startIndex, onClose }: StoryViewerProps) 
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  scrim: { backgroundColor: 'rgba(0,0,0,0.15)' },
+  scrim: { backgroundColor: 'rgba(0,0,0,0.18)' },
 
   topGrad: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 2 },
   barsRow: {
@@ -838,8 +887,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row', gap: 4, zIndex: 10,
   },
   barTrack: {
-    flex: 1, height: 2,
-    backgroundColor: 'rgba(255,255,255,0.3)', borderRadius: 2, overflow: 'hidden',
+    flex: 1, height: 2.5,
+    backgroundColor: 'rgba(255,255,255,0.35)', borderRadius: 2, overflow: 'hidden',
   },
   barFill: { height: '100%', backgroundColor: '#fff', borderRadius: 2 },
   barFillVideo: { backgroundColor: '#4ADE80' },
@@ -849,10 +898,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', gap: 10, zIndex: 10,
   },
   avatarRing: {
-    width: 38, height: 38, borderRadius: 19, borderWidth: 2,
+    width: 40, height: 40, borderRadius: 20, borderWidth: 2,
     padding: 2, alignItems: 'center', justifyContent: 'center',
   },
-  avatarInner: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  avatarInner: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#fff', fontSize: 11, fontFamily: 'Inter_700Bold' },
   userMeta: { flex: 1 },
   userNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -863,22 +912,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5, paddingVertical: 2,
     flexDirection: 'row', alignItems: 'center', gap: 3,
   },
+  videoBadgeText: { color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' },
   muteBtn: { padding: 6, marginRight: 2 },
   closeBtn: { padding: 6 },
 
+  // Verse / text overlay
   verseOverlay: {
-    position: 'absolute', left: 0, right: 0, top: '30%',
-    alignItems: 'center', paddingHorizontal: 20, zIndex: 5,
+    position: 'absolute', left: 0, right: 0,
+    top: 0, bottom: 0,
+    alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 24, zIndex: 5,
+    pointerEvents: 'none' as any,
   },
-  verseBox: {
-    backgroundColor: 'rgba(0,0,0,0.62)', borderRadius: 18, padding: 20,
-    borderLeftWidth: 3, borderLeftColor: '#D4A843',
-    gap: 10, width: '100%',
+  verseBadge: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(212,168,67,0.2)',
+    borderWidth: 1, borderColor: 'rgba(212,168,67,0.4)',
+    paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20,
+    marginBottom: 18,
+  },
+  verseBadgeText: { color: '#D4A843', fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 0.5 },
+  verseCard: {
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 20, padding: 24,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)',
+    gap: 14, width: '100%',
+    flexDirection: 'column',
+  },
+  verseAccentBar: {
+    width: 36, height: 3, backgroundColor: '#D4A843', borderRadius: 2,
   },
   verseText: {
-    color: '#fff', fontSize: 16, fontFamily: 'Inter_400Regular',
-    fontStyle: 'italic', textAlign: 'center', lineHeight: 24,
+    color: '#fff', fontSize: 18, fontFamily: 'Inter_400Regular',
+    fontStyle: 'italic', textAlign: 'center', lineHeight: 28,
   },
+  textStoryBody: { fontStyle: 'normal', fontSize: 20, lineHeight: 30 },
   verseRef: { color: '#D4A843', fontSize: 13, fontFamily: 'Inter_700Bold', textAlign: 'center' },
 
   heartBurst: {
@@ -892,14 +960,13 @@ const styles = StyleSheet.create({
   tapLeft: { width: '40%', height: '100%' },
   tapRight: { flex: 1, height: '100%' },
 
-  bottomGrad: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 200, zIndex: 2 },
+  bottomGrad: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 220, zIndex: 2 },
 
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
     paddingHorizontal: 12, paddingTop: 8, zIndex: 10,
   },
 
-  // Engagement row (others' stories)
   engagementRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   replyInputBtn: {
     flex: 1, borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.45)',
@@ -909,10 +976,9 @@ const styles = StyleSheet.create({
   replyPlaceholder: { color: 'rgba(255,255,255,0.55)', fontSize: 14, fontFamily: 'Inter_400Regular' },
   actionBtn: { padding: 6 },
 
-  // Own story footer
   ownFooterRow: {
     flexDirection: 'row', alignItems: 'center', gap: 10,
-    backgroundColor: 'rgba(0,0,0,0.35)', borderRadius: 18,
+    backgroundColor: 'rgba(0,0,0,0.4)', borderRadius: 18,
     paddingHorizontal: 14, paddingVertical: 10,
   },
   ownViewerFaces: { flexDirection: 'row', alignItems: 'center' },
@@ -934,7 +1000,6 @@ const styles = StyleSheet.create({
   ownStatPillText: { color: '#fff', fontSize: 12, fontFamily: 'Inter_700Bold' },
   analyticsIconBtn: { padding: 4 },
 
-  // Comment panel
   commentOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 20, justifyContent: 'flex-end' },
   commentPanel: {
     backgroundColor: 'rgba(15,15,20,0.97)',
@@ -969,7 +1034,6 @@ const styles = StyleSheet.create({
     flexShrink: 0, marginBottom: 2,
   },
 
-  // Analytics
   analyticsBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
   analyticsDrawer: {
     backgroundColor: '#0F0F1A',
@@ -1012,7 +1076,6 @@ const styles = StyleSheet.create({
   viewersCaption: { color: 'rgba(255,255,255,0.55)', fontSize: 13, fontFamily: 'Inter_400Regular' },
 
   drawerDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.07)', marginBottom: 16 },
-
   commentsHeading: {
     color: 'rgba(255,255,255,0.5)', fontSize: 12, fontFamily: 'Inter_700Bold',
     marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.8,
@@ -1032,7 +1095,6 @@ const styles = StyleSheet.create({
   emptyComments: { alignItems: 'center', paddingVertical: 24, gap: 10 },
   emptyCommentsText: { color: 'rgba(255,255,255,0.3)', fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center' },
 
-  // Ads
   adOverlay: { zIndex: 20, alignItems: 'center', justifyContent: 'center' },
   adProgressTrack: {
     position: 'absolute', left: 10, right: 10, height: 2.5,
