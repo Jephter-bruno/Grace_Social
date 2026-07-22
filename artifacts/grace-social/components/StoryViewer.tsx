@@ -472,6 +472,12 @@ export function StoryViewer({ visible, startIndex, onClose }: StoryViewerProps) 
                 contentFit="cover"
                 nativeControls={false}
               />
+            ) : currentItem?.imageUri ? (
+              <Image
+                source={{ uri: currentItem.imageUri }}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+              />
             ) : currentItem?.imageIndex !== undefined && currentItem.imageIndex !== null ? (
               <Image
                 source={POST_IMAGES[currentItem.imageIndex]}

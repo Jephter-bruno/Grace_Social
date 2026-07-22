@@ -24,7 +24,6 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { POST_IMAGES } from '@/constants/images';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 
@@ -49,7 +48,8 @@ export function AddStoryModal({ visible, onClose }: AddStoryModalProps) {
   const isWeb = Platform.OS === 'web';
 
   const [selectedType, setSelectedType] = useState<StoryType>(null);
-  const [selectedImage, setSelectedImage] = useState<number | null>(null);
+  const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
+  const [pickingImage, setPickingImage] = useState(false);
   const [selectedVerse, setSelectedVerse] = useState<number | null>(null);
   const [selectedVideoUri, setSelectedVideoUri] = useState<string | null>(null);
   const [customText, setCustomText] = useState('');
@@ -66,10 +66,31 @@ export function AddStoryModal({ visible, onClose }: AddStoryModalProps) {
 
   const reset = () => {
     setSelectedType(null);
-    setSelectedImage(null);
+    setSelectedImageUri(null);
     setSelectedVerse(null);
     setSelectedVideoUri(null);
     setCustomText('');
+  };
+
+  const pickImage = async () => {
+    setPickingImage(true);
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) { setPickingImage(false); return; }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: 'images',
+        allowsEditing: true,
+        aspect: [9, 16],
+        quality: 0.85,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setSelectedImageUri(result.assets[0].uri);
+      }
+    } catch {
+      // picker dismissed
+    } finally {
+      setPickingImage(false);
+    }
   };
 
   const pickVideo = async () => {
@@ -97,8 +118,8 @@ export function AddStoryModal({ visible, onClose }: AddStoryModalProps) {
   };
 
   const handleShare = () => {
-    if (selectedType === 'image' && selectedImage !== null) {
-      addStory({ type: 'image', imageIndex: selectedImage });
+    if (selectedType === 'image' && selectedImageUri) {
+      addStory({ type: 'image', imageUri: selectedImageUri });
     } else if (selectedType === 'video' && selectedVideoUri) {
       addStory({ type: 'video', videoUri: selectedVideoUri });
     } else if (selectedType === 'verse' && selectedVerse !== null) {
@@ -115,7 +136,7 @@ export function AddStoryModal({ visible, onClose }: AddStoryModalProps) {
   };
 
   const canShare =
-    (selectedType === 'image' && selectedImage !== null) ||
+    (selectedType === 'image' && !!selectedImageUri) ||
     (selectedType === 'video' && !!selectedVideoUri) ||
     (selectedType === 'verse' && selectedVerse !== null) ||
     customText.trim().length > 0;
@@ -168,7 +189,7 @@ export function AddStoryModal({ visible, onClose }: AddStoryModalProps) {
                 ]}
                 onPress={() => {
                   setSelectedType(type);
-                  if (type !== 'image') setSelectedImage(null);
+                  if (type !== 'image') setSelectedImageUri(null);
                   if (type !== 'verse') setSelectedVerse(null);
                   if (type !== 'video') setSelectedVideoUri(null);
                 }}
@@ -181,23 +202,47 @@ export function AddStoryModal({ visible, onClose }: AddStoryModalProps) {
             ))}
           </View>
 
-          {/* Image picker */}
+          {/* Image picker — real device gallery */}
           {selectedType === 'image' && (
-            <View style={styles.imagesGrid}>
-              {POST_IMAGES.map((src, i) => (
-                <TouchableOpacity
-                  key={i}
-                  onPress={() => setSelectedImage(i)}
-                  style={[styles.imgThumb, selectedImage === i && { borderColor: colors.primary, borderWidth: 3 }]}
-                >
-                  <Image source={src} style={styles.imgFill} contentFit="cover" />
-                  {selectedImage === i && (
-                    <View style={styles.checkOverlay}>
-                      <Feather name="check-circle" size={24} color="#fff" />
+            <View style={styles.gallerySection}>
+              {selectedImageUri ? (
+                <View style={styles.imagePreview}>
+                  <Image
+                    source={{ uri: selectedImageUri }}
+                    style={styles.imagePreviewImg}
+                    contentFit="cover"
+                  />
+                  <View style={styles.imageOverlay}>
+                    <View style={styles.imageReadyBadge}>
+                      <Feather name="check-circle" size={16} color="#fff" />
+                      <Text style={styles.imageReadyText}>Photo selected</Text>
                     </View>
+                    <TouchableOpacity style={styles.imageChangeBtn} onPress={pickImage} disabled={pickingImage}>
+                      <Text style={styles.imageChangeBtnText}>Change</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[styles.galleryPicker, { borderColor: colors.border, backgroundColor: colors.muted }]}
+                  onPress={pickImage}
+                  disabled={pickingImage}
+                >
+                  {pickingImage ? (
+                    <ActivityIndicator color={colors.primary} />
+                  ) : (
+                    <>
+                      <View style={[styles.galleryPickerIcon, { backgroundColor: `${colors.primary}20` }]}>
+                        <Feather name="image" size={32} color={colors.primary} />
+                      </View>
+                      <Text style={[styles.galleryPickerTitle, { color: colors.foreground }]}>Choose from Gallery</Text>
+                      <Text style={[styles.galleryPickerSub, { color: colors.mutedForeground }]}>
+                        Pick a photo from your camera roll
+                      </Text>
+                    </>
                   )}
                 </TouchableOpacity>
-              ))}
+              )}
             </View>
           )}
 
@@ -317,22 +362,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   typeBtnText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
-  imagesGrid: { flexDirection: 'row', gap: 10 },
-  imgThumb: {
-    flex: 1,
-    aspectRatio: 1,
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 0,
-    borderColor: 'transparent',
-  },
-  imgFill: { width: '100%', height: '100%' },
-  checkOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+  // Gallery image picker
+  gallerySection: { gap: 12 },
+  galleryPicker: {
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderRadius: 16,
+    paddingVertical: 40,
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 10,
   },
+  galleryPickerIcon: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center' },
+  galleryPickerTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold' },
+  galleryPickerSub: { fontSize: 13, fontFamily: 'Inter_400Regular', textAlign: 'center' },
+  imagePreview: { borderRadius: 16, overflow: 'hidden', aspectRatio: 9 / 16, maxHeight: 340, position: 'relative' },
+  imagePreviewImg: { width: '100%', height: '100%' },
+  imageOverlay: { ...StyleSheet.absoluteFillObject, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', padding: 12, backgroundColor: 'rgba(0,0,0,0.2)' },
+  imageReadyBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 },
+  imageReadyText: { color: '#fff', fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  imageChangeBtn: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' },
+  imageChangeBtnText: { color: '#fff', fontSize: 12, fontFamily: 'Inter_600SemiBold' },
 
   // Video
   videoSection: { gap: 12 },

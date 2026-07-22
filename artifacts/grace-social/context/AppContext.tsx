@@ -46,7 +46,8 @@ export interface StoryComment {
 export interface StoryItem {
   id: string;
   type: 'image' | 'video' | 'verse' | 'text';
-  imageIndex?: number;
+  imageIndex?: number;   // seeded/preset images
+  imageUri?: string;     // gallery-picked images (local file URI)
   videoUri?: string;
   verseText?: string;
   verseReference?: string;
