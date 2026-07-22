@@ -104,7 +104,7 @@ export default function HomeScreen() {
   const renderHeader = useCallback(
     () => (
       <>
-        <StoryBar stories={stories} />
+        <StoryBar />
         <DailyVerseCard />
         <SuggestedPeopleCard />
       </>
