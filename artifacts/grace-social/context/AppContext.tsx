@@ -34,9 +34,20 @@ export interface Comment {
   isLiked: boolean;
 }
 
+export interface StoryComment {
+  id: string;
+  userName: string;
+  userInitials: string;
+  userColor: string;
+  text: string;
+  timestamp: string;
+}
+
 export interface StoryItem {
   id: string;
+  type: 'image' | 'video' | 'verse' | 'text';
   imageIndex?: number;
+  videoUri?: string;
   verseText?: string;
   verseReference?: string;
   timestamp: string;
@@ -50,6 +61,11 @@ export interface Story {
   seen: boolean;
   isOwn?: boolean;
   items: StoryItem[];
+  viewCount: number;
+  likeCount: number;
+  shareCount: number;
+  isLikedByMe: boolean;
+  storyComments: StoryComment[];
 }
 
 export interface Prayer {
@@ -185,6 +201,10 @@ interface AppContextType {
   markAllRead: () => void;
   markStorySeen: (storyId: string) => void;
   addStory: (item: Omit<StoryItem, 'id' | 'timestamp'>) => void;
+  toggleStoryLike: (storyId: string) => void;
+  addStoryComment: (storyId: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => void;
+  incrementStoryShare: (storyId: string) => void;
+  recordStoryView: (storyId: string) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -198,6 +218,14 @@ const INITIAL_STORIES: Story[] = [
     seen: false,
     isOwn: true,
     items: [],
+    viewCount: 47,
+    likeCount: 12,
+    shareCount: 5,
+    isLikedByMe: false,
+    storyComments: [
+      { id: 'sc1', userName: 'Pastor James', userInitials: 'PJ', userColor: '#D4A843', text: 'So encouraging! God bless you 🙏', timestamp: '1h ago' },
+      { id: 'sc2', userName: 'Sarah W.', userInitials: 'SW', userColor: '#9B59B6', text: 'Amen! This really spoke to me today ✨', timestamp: '2h ago' },
+    ],
   },
   {
     id: 's1',
@@ -205,8 +233,13 @@ const INITIAL_STORIES: Story[] = [
     userInitials: 'PJ',
     userColor: '#D4A843',
     seen: false,
+    viewCount: 128,
+    likeCount: 34,
+    shareCount: 11,
+    isLikedByMe: false,
+    storyComments: [],
     items: [
-      { id: 's1i1', imageIndex: 0, verseText: 'Not giving up meeting together, but encouraging one another.', verseReference: 'Hebrews 10:25', timestamp: '2h ago' },
+      { id: 's1i1', type: 'image', imageIndex: 0, verseText: 'Not giving up meeting together, but encouraging one another.', verseReference: 'Hebrews 10:25', timestamp: '2h ago' },
     ],
   },
   {
@@ -215,8 +248,13 @@ const INITIAL_STORIES: Story[] = [
     userInitials: 'MK',
     userColor: '#E91E8C',
     seen: false,
+    viewCount: 63,
+    likeCount: 18,
+    shareCount: 4,
+    isLikedByMe: false,
+    storyComments: [],
     items: [
-      { id: 's2i1', verseText: 'The Lord is my shepherd; I shall not want.', verseReference: 'Psalm 23:1', timestamp: '3h ago' },
+      { id: 's2i1', type: 'verse', verseText: 'The Lord is my shepherd; I shall not want.', verseReference: 'Psalm 23:1', timestamp: '3h ago' },
     ],
   },
   {
@@ -225,8 +263,13 @@ const INITIAL_STORIES: Story[] = [
     userInitials: 'DL',
     userColor: '#27AE60',
     seen: true,
+    viewCount: 91,
+    likeCount: 27,
+    shareCount: 8,
+    isLikedByMe: false,
+    storyComments: [],
     items: [
-      { id: 's3i1', imageIndex: 1, verseText: 'For I know the plans I have for you, declares the Lord.', verseReference: 'Jeremiah 29:11', timestamp: '5h ago' },
+      { id: 's3i1', type: 'image', imageIndex: 1, verseText: 'For I know the plans I have for you, declares the Lord.', verseReference: 'Jeremiah 29:11', timestamp: '5h ago' },
     ],
   },
   {
@@ -235,8 +278,13 @@ const INITIAL_STORIES: Story[] = [
     userInitials: 'SW',
     userColor: '#9B59B6',
     seen: false,
+    viewCount: 52,
+    likeCount: 14,
+    shareCount: 2,
+    isLikedByMe: false,
+    storyComments: [],
     items: [
-      { id: 's4i1', imageIndex: 2, verseText: 'Your word is a lamp for my feet, a light on my path.', verseReference: 'Psalm 119:105', timestamp: '6h ago' },
+      { id: 's4i1', type: 'image', imageIndex: 2, verseText: 'Your word is a lamp for my feet, a light on my path.', verseReference: 'Psalm 119:105', timestamp: '6h ago' },
     ],
   },
   {
@@ -245,8 +293,13 @@ const INITIAL_STORIES: Story[] = [
     userInitials: 'TB',
     userColor: '#E74C3C',
     seen: true,
+    viewCount: 38,
+    likeCount: 9,
+    shareCount: 3,
+    isLikedByMe: false,
+    storyComments: [],
     items: [
-      { id: 's5i1', verseText: 'Cast all your anxiety on him because he cares for you.', verseReference: '1 Peter 5:7', timestamp: '1d ago' },
+      { id: 's5i1', type: 'verse', verseText: 'Cast all your anxiety on him because he cares for you.', verseReference: '1 Peter 5:7', timestamp: '1d ago' },
     ],
   },
   {
@@ -255,8 +308,13 @@ const INITIAL_STORIES: Story[] = [
     userInitials: 'GM',
     userColor: '#F39C12',
     seen: false,
+    viewCount: 74,
+    likeCount: 21,
+    shareCount: 6,
+    isLikedByMe: false,
+    storyComments: [],
     items: [
-      { id: 's6i1', imageIndex: 0, verseText: 'I can do all things through Christ who strengthens me.', verseReference: 'Philippians 4:13', timestamp: '1d ago' },
+      { id: 's6i1', type: 'image', imageIndex: 0, verseText: 'I can do all things through Christ who strengthens me.', verseReference: 'Philippians 4:13', timestamp: '1d ago' },
     ],
   },
 ];
@@ -620,6 +678,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setStories((prev) => prev.map((s) => s.isOwn ? { ...s, items: [newItem, ...s.items], seen: false } : s));
   }, []);
 
+  const toggleStoryLike = useCallback((storyId: string) => {
+    setStories((prev) => prev.map((s) => {
+      if (s.id !== storyId) return s;
+      const nowLiked = !s.isLikedByMe;
+      return { ...s, isLikedByMe: nowLiked, likeCount: nowLiked ? s.likeCount + 1 : Math.max(0, s.likeCount - 1) };
+    }));
+  }, []);
+
+  const addStoryComment = useCallback((storyId: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => {
+    const newComment: StoryComment = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 6),
+      userName: user?.userName ?? 'You',
+      userInitials: user?.userInitials ?? 'ME',
+      userColor: user?.userColor ?? '#4A90A4',
+      text,
+      timestamp: 'just now',
+    };
+    setStories((prev) => prev.map((s) =>
+      s.id === storyId ? { ...s, storyComments: [newComment, ...s.storyComments] } : s
+    ));
+  }, []);
+
+  const incrementStoryShare = useCallback((storyId: string) => {
+    setStories((prev) => prev.map((s) => s.id === storyId ? { ...s, shareCount: s.shareCount + 1 } : s));
+  }, []);
+
+  const recordStoryView = useCallback((storyId: string) => {
+    setStories((prev) => prev.map((s) => s.id === storyId ? { ...s, viewCount: s.viewCount + 1 } : s));
+  }, []);
+
   const INITIAL_USER_PROFILE: UserProfile = {
     name: 'Grace Member',
     handle: '@gracemember',
@@ -640,7 +728,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const followingCount = Object.values(followedHandles).filter(Boolean).length;
 
   return (
-    <AppContext.Provider value={{ posts, stories, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, toggleReelSave, incrementReelShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, markStorySeen, addStory }}>
+    <AppContext.Provider value={{ posts, stories, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, toggleReelSave, incrementReelShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, markStorySeen, addStory, toggleStoryLike, addStoryComment, incrementStoryShare, recordStoryView }}>
       {children}
     </AppContext.Provider>
   );
