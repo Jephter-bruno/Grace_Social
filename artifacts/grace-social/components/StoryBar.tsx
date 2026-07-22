@@ -3,17 +3,22 @@ import React, { useState } from 'react';
 import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 import { AddStoryModal } from '@/components/AddStoryModal';
-import { StoryViewer } from '@/components/StoryViewer';
 import { AvatarCircle } from '@/components/AvatarCircle';
 import { Story, useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 
-export function StoryBar({ stories }: { stories: Story[] }) {
+interface StoryBarProps {
+  /** Called with the viewable-stories index when the user taps a story that has content. */
+  onOpenViewer: (idx: number) => void;
+}
+
+export function StoryBar({ onOpenViewer }: StoryBarProps) {
   const colors = useColors();
   const { currentUser } = useAuth();
-  const [viewerVisible, setViewerVisible] = useState(false);
-  const [viewerStartIndex, setViewerStartIndex] = useState(0);
+  // Get stories directly from context so the parent's renderHeader
+  // doesn't need to depend on `stories` and avoids remounting the header.
+  const { stories } = useApp();
   const [addStoryVisible, setAddStoryVisible] = useState(false);
 
   // All stories that have content (including own if has items)
@@ -23,10 +28,8 @@ export function StoryBar({ stories }: { stories: Story[] }) {
   const handleStoryPress = (item: Story) => {
     if (item.isOwn) {
       if ((ownStory?.items?.length ?? 0) > 0) {
-        // View own story
         const idx = viewableStories.findIndex((s) => s.id === item.id);
-        setViewerStartIndex(idx >= 0 ? idx : 0);
-        setViewerVisible(true);
+        onOpenViewer(idx >= 0 ? idx : 0);
       } else {
         setAddStoryVisible(true);
       }
@@ -34,8 +37,7 @@ export function StoryBar({ stories }: { stories: Story[] }) {
     }
     const idx = viewableStories.findIndex((s) => s.id === item.id);
     if (idx >= 0) {
-      setViewerStartIndex(idx);
-      setViewerVisible(true);
+      onOpenViewer(idx);
     }
   };
 
