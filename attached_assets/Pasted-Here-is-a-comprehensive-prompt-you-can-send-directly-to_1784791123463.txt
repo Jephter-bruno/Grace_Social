@@ -1,0 +1,74 @@
+Here is a comprehensive prompt you can send directly to Replit Agent (or paste into your AI code editor) to build a fully working, pixel-perfect Instagram-style Story viewer:
+
+---
+
+### 📝 Prompt for Replit Agent / AI Assistant
+
+> **Task:** Redesign and refactor the `StoryViewer` component to create an exact, pixel-perfect replica of Instagram Stories with fully functional interactive features and stable video/media handling.
+> Please implement the following specifications across the story player components:
+> ---
+> 
+> 
+> ### 1. 🎨 Visual Layout & UI (Exact Instagram Match)
+> 
+> 
+> * **Full-Screen Canvas:** Black background with rounded corners on modern devices, fitting full screen inside the story modal.
+> * **Top Header Bar:**
+> * Segmented progress bars at the top, proportional to the number of story items for the active user.
+> * User avatar (with a thin border), username, and relative time posted (e.g., `2h`, `5m`).
+> * Close (`X`) button in the top right corner.
+> * Option button (`•••` three dots) next to close button.
+> 
+> 
+> * **Bottom Action Bar:**
+> * Semi-transparent "Send Message..." input pill on the left.
+> * Heart / Like button (`❤️`) that toggles like state.
+> * Paper airplane / Share button (`✈️`) for sharing stories.
+> 
+> 
+> * **Verse / Text Overlay:** If the story item contains text or a Bible verse, render it with a stylish gradient overlay, clean typography, and elevated card background.
+> 
+> 
+> ---
+> 
+> 
+> ### 2. ⚡ Interactivity & Gestures
+> 
+> 
+> * **Tap Navigation:**
+> * **Tap Left (30% of screen):** Go to the previous story item (or previous user if on the first item).
+> * **Tap Right (70% of screen):** Go to the next story item (or next user if on the last item).
+> 
+> 
+> * **Press & Hold to Pause:** Holding down on the screen pauses progress timers and video playback, and temporarily hides top/bottom controls for full view.
+> * **Swipe / Transition:**
+> * **Swipe Down:** Smoothly dismisses/closes the story modal.
+> * **Auto-advance:** When a story finishes (or 5s elapses for image/text stories), automatically advance to the next item or next user. Automatically close when all user stories are completed.
+> 
+> 
+> 
+> 
+> ---
+> 
+> 
+> ### 3. 📹 Media Handling & Web Crash Prevention
+> 
+> 
+> * **Safe Video Player Loading:**
+> * Do **not** initialize `useVideoPlayer` or video hooks when the video URI is `null`, `undefined`, or when rendering image/text stories.
+> * Wrap video playback inside a dedicated, isolated sub-component (e.g., `VideoStoryPlayer`) that only mounts when a valid video URL exists to prevent web runtime crashes (`expo-video` web `SharedObject` error).
+> 
+> 
+> * **Image Preloading:** Show a subtle loading indicator while images/videos buffer.
+> 
+> 
+> ---
+> 
+> 
+> ### 4. 🧹 State Management & Verification
+> 
+> 
+> * Ensure progress timers cleanly reset whenever `currentUserIndex` or `currentStoryIndex` changes.
+> * Verify that opening the viewer from `StoryBar` always passes the correct `initialUserIndex` and opens cleanly without flash-and-close issues.
+> 
+>
