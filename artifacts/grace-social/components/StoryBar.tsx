@@ -4,7 +4,6 @@ import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native
 
 import { AddStoryModal } from '@/components/AddStoryModal';
 import { AvatarCircle } from '@/components/AvatarCircle';
-import { StoryViewer } from '@/components/StoryViewer';
 import { Story, useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
@@ -15,34 +14,15 @@ export function StoryBar() {
   const { stories } = useApp();
 
   const [addStoryVisible, setAddStoryVisible] = useState(false);
-  const [viewerVisible, setViewerVisible] = useState(false);
-  const [viewerStartIndex, setViewerStartIndex] = useState(0);
 
-  // Stories that actually have content — passed to StoryViewer so it
-  // uses the same filtered list for navigation.
-  const viewableStories = stories.filter((s) => s.items.length > 0);
   const ownStory = stories.find((s) => s.isOwn);
   const hasOwnStory = (ownStory?.items?.length ?? 0) > 0;
 
-  const openViewer = (idx: number) => {
-    setViewerStartIndex(idx);
-    setViewerVisible(true);
-  };
-
   const handleStoryPress = (item: Story) => {
     if (item.isOwn) {
-      if (hasOwnStory) {
-        const idx = viewableStories.findIndex((s) => s.id === item.id);
-        openViewer(idx >= 0 ? idx : 0);
-      } else {
-        setAddStoryVisible(true);
-      }
-      return;
+      setAddStoryVisible(true);
     }
-    const idx = viewableStories.findIndex((s) => s.id === item.id);
-    if (idx >= 0) {
-      openViewer(idx);
-    }
+    // Tapping other users' story rings has no action (viewing removed)
   };
 
   return (
@@ -53,76 +33,58 @@ export function StoryBar() {
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={[styles.container, { borderBottomColor: colors.border }]}
-        renderItem={({ item }) => {
-          const hasContent = item.isOwn ? hasOwnStory : item.items.length > 0;
-
-          return (
-            <TouchableOpacity
-              style={styles.story}
-              activeOpacity={0.75}
-              onPress={() => handleStoryPress(item)}
-            >
-              {item.isOwn ? (
-                <View style={styles.ownWrap}>
-                  <View
-                    style={[
-                      styles.ownRing,
-                      hasOwnStory
-                        ? { borderColor: colors.accent, borderWidth: 2.5 }
-                        : { borderColor: 'transparent', borderWidth: 0 },
-                    ]}
-                  >
-                    <AvatarCircle
-                      initials={currentUser?.initials || 'ME'}
-                      color={currentUser?.color || colors.primary}
-                      avatarUrl={currentUser?.avatarUrl}
-                      size={52}
-                    />
-                  </View>
-                  <View style={[styles.addBadge, { backgroundColor: colors.primary }]}>
-                    <Feather name={hasOwnStory ? 'eye' : 'plus'} size={10} color="#fff" />
-                  </View>
-                </View>
-              ) : (
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={styles.story}
+            activeOpacity={item.isOwn ? 0.75 : 1}
+            onPress={() => handleStoryPress(item)}
+          >
+            {item.isOwn ? (
+              <View style={styles.ownWrap}>
                 <View
                   style={[
-                    styles.ring,
-                    {
-                      borderColor: item.seen ? colors.border : colors.accent,
-                      borderWidth: item.seen ? 1.5 : 2.5,
-                    },
+                    styles.ownRing,
+                    hasOwnStory
+                      ? { borderColor: colors.accent, borderWidth: 2.5 }
+                      : { borderColor: 'transparent', borderWidth: 0 },
                   ]}
                 >
-                  <AvatarCircle initials={item.userInitials} color={item.userColor} size={52} />
-                  {!item.seen && (
-                    <View style={[styles.unseenDot, { backgroundColor: colors.accent }]} />
-                  )}
+                  <AvatarCircle
+                    initials={currentUser?.initials || 'ME'}
+                    color={currentUser?.color || colors.primary}
+                    avatarUrl={currentUser?.avatarUrl}
+                    size={52}
+                  />
                 </View>
-              )}
-              <Text
-                style={[styles.name, { color: colors.foreground }]}
-                numberOfLines={1}
+                <View style={[styles.addBadge, { backgroundColor: colors.primary }]}>
+                  <Feather name="plus" size={10} color="#fff" />
+                </View>
+              </View>
+            ) : (
+              <View
+                style={[
+                  styles.ring,
+                  {
+                    borderColor: item.seen ? colors.border : colors.accent,
+                    borderWidth: item.seen ? 1.5 : 2.5,
+                  },
+                ]}
               >
-                {item.isOwn
-                  ? hasOwnStory ? 'Your Story' : 'Add Story'
-                  : item.userName.split(' ')[0]}
-              </Text>
-            </TouchableOpacity>
-          );
-        }}
+                <AvatarCircle initials={item.userInitials} color={item.userColor} size={52} />
+                {!item.seen && (
+                  <View style={[styles.unseenDot, { backgroundColor: colors.accent }]} />
+                )}
+              </View>
+            )}
+            <Text
+              style={[styles.name, { color: colors.foreground }]}
+              numberOfLines={1}
+            >
+              {item.isOwn ? 'Add Story' : item.userName.split(' ')[0]}
+            </Text>
+          </TouchableOpacity>
+        )}
       />
-
-      {/* Only mount StoryViewer when it's actually open.
-          This guarantees fresh state on every open and prevents
-          always-mounted hooks (like useVideoPlayer) from running
-          when there's no active story. */}
-      {viewerVisible && (
-        <StoryViewer
-          stories={viewableStories}
-          startIndex={viewerStartIndex}
-          onClose={() => setViewerVisible(false)}
-        />
-      )}
 
       <AddStoryModal
         visible={addStoryVisible}
