@@ -34,40 +34,6 @@ export interface Comment {
   isLiked: boolean;
 }
 
-export interface StoryComment {
-  id: string;
-  userName: string;
-  userInitials: string;
-  userColor: string;
-  text: string;
-  timestamp: string;
-}
-
-export interface StoryItem {
-  id: string;
-  type: 'image' | 'video' | 'verse' | 'text';
-  imageIndex?: number;   // seeded/preset images
-  imageUri?: string;     // gallery-picked images (local file URI)
-  videoUri?: string;
-  verseText?: string;
-  verseReference?: string;
-  timestamp: string;
-}
-
-export interface Story {
-  id: string;
-  userName: string;
-  userInitials: string;
-  userColor: string;
-  seen: boolean;
-  isOwn?: boolean;
-  items: StoryItem[];
-  viewCount: number;
-  likeCount: number;
-  shareCount: number;
-  isLikedByMe: boolean;
-  storyComments: StoryComment[];
-}
 
 export interface Prayer {
   id: string;
@@ -130,8 +96,7 @@ export type NotificationType =
   | 'community_announcement'
   | 'prayer_response'
   | 'prayer_pray'
-  | 'verse_share'
-  | 'story_reply';
+  | 'verse_share';
 
 export interface Notification {
   id: string;
@@ -166,7 +131,6 @@ export interface PendingVerse {
 
 interface AppContextType {
   posts: Post[];
-  stories: Story[];
   prayers: Prayer[];
   reels: Reel[];
   communities: Community[];
@@ -201,125 +165,10 @@ interface AppContextType {
   toggleCommentLike: (postId: string, commentId: string) => void;
   togglePrayerCommentLike: (prayerId: string, commentId: string) => void;
   markAllRead: () => void;
-  markStorySeen: (storyId: string) => void;
-  addStory: (item: Omit<StoryItem, 'id' | 'timestamp'>) => void;
-  toggleStoryLike: (storyId: string) => void;
-  addStoryComment: (storyId: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => void;
-  incrementStoryShare: (storyId: string) => void;
-  recordStoryView: (storyId: string) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
 
-const INITIAL_STORIES: Story[] = [
-  {
-    id: 'own',
-    userName: 'Add Story',
-    userInitials: 'ME',
-    userColor: '#4A90A4',
-    seen: false,
-    isOwn: true,
-    items: [],
-    viewCount: 47,
-    likeCount: 12,
-    shareCount: 5,
-    isLikedByMe: false,
-    storyComments: [
-      { id: 'sc1', userName: 'Pastor James', userInitials: 'PJ', userColor: '#D4A843', text: 'So encouraging! God bless you 🙏', timestamp: '1h ago' },
-      { id: 'sc2', userName: 'Sarah W.', userInitials: 'SW', userColor: '#9B59B6', text: 'Amen! This really spoke to me today ✨', timestamp: '2h ago' },
-    ],
-  },
-  {
-    id: 's1',
-    userName: 'Pastor James',
-    userInitials: 'PJ',
-    userColor: '#D4A843',
-    seen: false,
-    viewCount: 128,
-    likeCount: 34,
-    shareCount: 11,
-    isLikedByMe: false,
-    storyComments: [],
-    items: [
-      { id: 's1i1', type: 'image', imageIndex: 0, verseText: 'Not giving up meeting together, but encouraging one another.', verseReference: 'Hebrews 10:25', timestamp: '2h ago' },
-    ],
-  },
-  {
-    id: 's2',
-    userName: 'Mary K.',
-    userInitials: 'MK',
-    userColor: '#E91E8C',
-    seen: false,
-    viewCount: 63,
-    likeCount: 18,
-    shareCount: 4,
-    isLikedByMe: false,
-    storyComments: [],
-    items: [
-      { id: 's2i1', type: 'verse', verseText: 'The Lord is my shepherd; I shall not want.', verseReference: 'Psalm 23:1', timestamp: '3h ago' },
-    ],
-  },
-  {
-    id: 's3',
-    userName: 'David L.',
-    userInitials: 'DL',
-    userColor: '#27AE60',
-    seen: true,
-    viewCount: 91,
-    likeCount: 27,
-    shareCount: 8,
-    isLikedByMe: false,
-    storyComments: [],
-    items: [
-      { id: 's3i1', type: 'image', imageIndex: 1, verseText: 'For I know the plans I have for you, declares the Lord.', verseReference: 'Jeremiah 29:11', timestamp: '5h ago' },
-    ],
-  },
-  {
-    id: 's4',
-    userName: 'Sarah W.',
-    userInitials: 'SW',
-    userColor: '#9B59B6',
-    seen: false,
-    viewCount: 52,
-    likeCount: 14,
-    shareCount: 2,
-    isLikedByMe: false,
-    storyComments: [],
-    items: [
-      { id: 's4i1', type: 'image', imageIndex: 2, verseText: 'Your word is a lamp for my feet, a light on my path.', verseReference: 'Psalm 119:105', timestamp: '6h ago' },
-    ],
-  },
-  {
-    id: 's5',
-    userName: 'Thomas B.',
-    userInitials: 'TB',
-    userColor: '#E74C3C',
-    seen: true,
-    viewCount: 38,
-    likeCount: 9,
-    shareCount: 3,
-    isLikedByMe: false,
-    storyComments: [],
-    items: [
-      { id: 's5i1', type: 'verse', verseText: 'Cast all your anxiety on him because he cares for you.', verseReference: '1 Peter 5:7', timestamp: '1d ago' },
-    ],
-  },
-  {
-    id: 's6',
-    userName: 'Grace Min.',
-    userInitials: 'GM',
-    userColor: '#F39C12',
-    seen: false,
-    viewCount: 74,
-    likeCount: 21,
-    shareCount: 6,
-    isLikedByMe: false,
-    storyComments: [],
-    items: [
-      { id: 's6i1', type: 'image', imageIndex: 0, verseText: 'I can do all things through Christ who strengthens me.', verseReference: 'Philippians 4:13', timestamp: '1d ago' },
-    ],
-  },
-];
 
 const INITIAL_POSTS: Post[] = [
   {
@@ -527,12 +376,10 @@ const INITIAL_NOTIFICATIONS: Notification[] = [
   { id: 'n11', type: 'repost', userName: 'Worship House', userInitials: 'WH', userColor: '#3B82F6', message: 'reposted your devotional post.', timestamp: '1d ago', postImageIndex: 2, targetTab: '/', isRead: true, createdAt: NOW - DAY - HOUR },
   { id: 'n12', type: 'dm', userName: 'Sarah M.', userInitials: 'SM', color: '#E91E8C', userColor: '#E91E8C', message: 'sent you a message: "Can we pray together sometime?"', timestamp: '2d ago', targetTab: '/messages', isRead: true, createdAt: NOW - 2 * DAY },
   { id: 'n13', type: 'comment_like', userName: 'John A.', userInitials: 'JA', userColor: '#F59E0B', message: 'liked your comment on Pastor James\'s post.', timestamp: '2d ago', postImageIndex: 0, targetTab: '/', isRead: true, createdAt: NOW - 2 * DAY - HOUR },
-  { id: 'n14', type: 'story_reply', userName: 'Lydia Chen', userInitials: 'LC', userColor: '#EC4899', message: 'replied to your story: "So beautiful! 🙌"', timestamp: '3d ago', targetTab: '/', isRead: true, createdAt: NOW - 3 * DAY },
 ];
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
-  const [stories, setStories] = useState<Story[]>(INITIAL_STORIES);
   const [prayers, setPrayers] = useState<Prayer[]>(INITIAL_PRAYERS);
   const [reels, setReels] = useState<Reel[]>(INITIAL_REELS);
   const [communities, setCommunities] = useState<Community[]>(INITIAL_COMMUNITIES);
@@ -671,45 +518,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => { clearTimeout(firstDelay); clearInterval(interval); };
   }, []);
 
-  const markStorySeen = useCallback((storyId: string) => {
-    setStories((prev) => prev.map((s) => (s.id === storyId ? { ...s, seen: true } : s)));
-  }, []);
-
-  const addStory = useCallback((item: Omit<StoryItem, 'id' | 'timestamp'>) => {
-    const newItem: StoryItem = { ...item, id: Date.now().toString(), timestamp: 'Just now' };
-    setStories((prev) => prev.map((s) => s.isOwn ? { ...s, items: [newItem, ...s.items], seen: false } : s));
-  }, []);
-
-  const toggleStoryLike = useCallback((storyId: string) => {
-    setStories((prev) => prev.map((s) => {
-      if (s.id !== storyId) return s;
-      const nowLiked = !s.isLikedByMe;
-      return { ...s, isLikedByMe: nowLiked, likeCount: nowLiked ? s.likeCount + 1 : Math.max(0, s.likeCount - 1) };
-    }));
-  }, []);
-
-  const addStoryComment = useCallback((storyId: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => {
-    const newComment: StoryComment = {
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 6),
-      userName: user?.userName ?? 'You',
-      userInitials: user?.userInitials ?? 'ME',
-      userColor: user?.userColor ?? '#4A90A4',
-      text,
-      timestamp: 'just now',
-    };
-    setStories((prev) => prev.map((s) =>
-      s.id === storyId ? { ...s, storyComments: [newComment, ...s.storyComments] } : s
-    ));
-  }, []);
-
-  const incrementStoryShare = useCallback((storyId: string) => {
-    setStories((prev) => prev.map((s) => s.id === storyId ? { ...s, shareCount: s.shareCount + 1 } : s));
-  }, []);
-
-  const recordStoryView = useCallback((storyId: string) => {
-    setStories((prev) => prev.map((s) => s.id === storyId ? { ...s, viewCount: s.viewCount + 1 } : s));
-  }, []);
-
   const INITIAL_USER_PROFILE: UserProfile = {
     name: 'Grace Member',
     handle: '@gracemember',
@@ -730,7 +538,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const followingCount = Object.values(followedHandles).filter(Boolean).length;
 
   return (
-    <AppContext.Provider value={{ posts, stories, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, toggleReelSave, incrementReelShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, markStorySeen, addStory, toggleStoryLike, addStoryComment, incrementStoryShare, recordStoryView }}>
+    <AppContext.Provider value={{ posts, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, toggleReelSave, incrementReelShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead }}>
       {children}
     </AppContext.Provider>
   );

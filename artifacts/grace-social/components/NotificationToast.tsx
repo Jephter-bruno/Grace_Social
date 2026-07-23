@@ -23,7 +23,6 @@ const TYPE_META: Record<NotificationType, { icon: string; color: string }> = {
   prayer_response: { icon: 'message-circle', color: '#D4A843' },
   prayer_pray: { icon: 'sun', color: '#D4A843' },
   verse_share: { icon: 'book-open', color: '#8B5CF6' },
-  story_reply: { icon: 'image', color: '#EC4899' },
 };
 
 let activeAutoClose: ReturnType<typeof setTimeout> | null = null;

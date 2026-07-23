@@ -37,7 +37,7 @@ const FILTERS: { key: FilterKey; label: string; icon: string; types: Notificatio
   { key: 'comments', label: 'Comments', icon: 'message-circle', types: ['comment'] },
   { key: 'follows', label: 'Follows', icon: 'user-plus', types: ['follow', 'repost', 'share'] },
   { key: 'prayer', label: 'Prayer', icon: 'sun', types: ['prayer_pray', 'prayer_response', 'verse_share'] },
-  { key: 'community', label: 'Community', icon: 'users', types: ['community_invite', 'community_announcement', 'story_reply'] },
+  { key: 'community', label: 'Community', icon: 'users', types: ['community_invite', 'community_announcement'] },
   { key: 'messages', label: 'Messages', icon: 'send', types: ['dm'] },
   { key: 'mentions', label: 'Mentions', icon: 'at-sign', types: ['mention'] },
 ];
@@ -56,7 +56,6 @@ const TYPE_META: Record<NotificationType, { icon: string; color: string; label: 
   prayer_response: { icon: 'message-circle', color: '#D4A843', label: 'Prayer response' },
   prayer_pray: { icon: 'sun', color: '#D4A843', label: 'Praying' },
   verse_share: { icon: 'book-open', color: '#8B5CF6', label: 'Verse shared' },
-  story_reply: { icon: 'image', color: '#EC4899', label: 'Story reply' },
 };
 
 function TypeIcon({ type }: { type: NotificationType }) {

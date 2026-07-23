@@ -18,7 +18,6 @@ import { HomePrayerWall } from '@/components/HomePrayerWall';
 import { NewPostModal } from '@/components/NewPostModal';
 import { PostCard } from '@/components/PostCard';
 import { RealmSpotlight } from '@/components/RealmSpotlight';
-import { StoryBar } from '@/components/StoryBar';
 import { SuggestedCommunities } from '@/components/SuggestedCommunities';
 import { SuggestedPeopleCard } from '@/components/SuggestedPeopleCard';
 import { Post, useApp } from '@/context/AppContext';
@@ -56,7 +55,7 @@ function buildFeed(posts: Post[], adEvery = 3): FeedItem[] {
 }
 
 export default function HomeScreen() {
-  const { posts, stories, unreadCount, pendingVerse, setPendingVerse } = useApp();
+  const { posts, unreadCount, pendingVerse, setPendingVerse } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
@@ -104,12 +103,11 @@ export default function HomeScreen() {
   const renderHeader = useCallback(
     () => (
       <>
-        <StoryBar />
         <DailyVerseCard />
         <SuggestedPeopleCard />
       </>
     ),
-    [stories]
+    []
   );
 
   return (
