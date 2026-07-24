@@ -13,6 +13,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AdCard } from '@/components/AdCard';
+import { AddStorySheet } from '@/components/AddStorySheet';
 import { DailyVerseCard } from '@/components/DailyVerseCard';
 import { HomePrayerWall } from '@/components/HomePrayerWall';
 import { NewPostModal } from '@/components/NewPostModal';
@@ -66,7 +67,8 @@ export default function HomeScreen() {
   const [showModal, setShowModal] = useState(false);
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
-  const { stories, markSeen, addOwnStory, hasOwnStory } = useStories();
+  const [showAddStory, setShowAddStory] = useState(false);
+  const { stories, markSeen, addOwnStory } = useStories();
 
   useEffect(() => {
     if (pendingVerse) {
@@ -180,8 +182,13 @@ export default function HomeScreen() {
         visible={storyViewerIndex !== null}
         onClose={() => setStoryViewerIndex(null)}
         onSeen={markSeen}
-        onAddStory={addOwnStory}
-        hasOwnStory={hasOwnStory}
+        onRequestAddStory={() => setShowAddStory(true)}
+      />
+
+      <AddStorySheet
+        visible={showAddStory}
+        onClose={() => setShowAddStory(false)}
+        onSubmit={addOwnStory}
       />
     </View>
   );

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Animated,
   Dimensions,
+  Image,
   Modal,
   Platform,
   StyleSheet,
@@ -9,24 +10,15 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
-  Alert,
-  TextInput,
-  KeyboardAvoidingView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Video, ResizeMode } from 'expo-av';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Story, StoryItem } from '@/hooks/useStories';
 
-const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-const STORY_DURATION = 5000; // ms per story item
-const ADD_STORY_GRADIENTS: [string, string, string][] = [
-  ['#1a3a4a', '#2d6a7f', '#1a3a4a'],
-  ['#2a1a3a', '#5a3a7a', '#2a1a3a'],
-  ['#1a2a1a', '#2a5a3a', '#1a3a2a'],
-  ['#3a1a10', '#7a3520', '#3a1a10'],
-  ['#2a2010', '#5a4520', '#2a2010'],
-];
+const STORY_DURATION = 5000;
+const VIDEO_DURATION = 10000;
 
 interface StoryViewerProps {
   stories: Story[];
@@ -34,8 +26,7 @@ interface StoryViewerProps {
   visible: boolean;
   onClose: () => void;
   onSeen: (storyId: string) => void;
-  onAddStory?: (text: string, gradient: [string, string, string]) => void;
-  hasOwnStory: boolean;
+  onRequestAddStory: () => void;
 }
 
 export function StoryViewer({
@@ -44,196 +35,146 @@ export function StoryViewer({
   visible,
   onClose,
   onSeen,
-  onAddStory,
-  hasOwnStory,
+  onRequestAddStory,
 }: StoryViewerProps) {
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
+  const videoRef = useRef<Video>(null);
 
   const [storyIndex, setStoryIndex] = useState(initialIndex);
   const [itemIndex, setItemIndex] = useState(0);
-  const [addMode, setAddMode] = useState(false);
-  const [addText, setAddText] = useState('');
-  const [selectedGradientIdx, setSelectedGradientIdx] = useState(0);
 
   const progressAnim = useRef(new Animated.Value(0)).current;
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const animRef = useRef<Animated.CompositeAnimation | null>(null);
 
   const currentStory = stories[storyIndex];
   const currentItem: StoryItem | undefined = currentStory?.items[itemIndex];
   const isOwnEmpty = currentStory?.isOwn && currentStory.items.length === 0;
-  const totalItems = Math.max(currentStory?.items.length ?? 0, 1);
+  const itemCount = currentStory?.items.length ?? 0;
 
-  const stopTimer = useCallback(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    if (animRef.current) animRef.current.stop();
+  const stopAnim = useCallback(() => {
+    if (animRef.current) { animRef.current.stop(); animRef.current = null; }
   }, []);
 
-  const goToNextItem = useCallback(() => {
-    const items = currentStory?.items ?? [];
-    if (itemIndex < items.length - 1) {
+  const goNext = useCallback(() => {
+    if (itemIndex < (currentStory?.items.length ?? 0) - 1) {
       setItemIndex((i) => i + 1);
+    } else if (storyIndex < stories.length - 1) {
+      setStoryIndex((s) => s + 1);
+      setItemIndex(0);
     } else {
-      // Next story
-      if (storyIndex < stories.length - 1) {
-        setStoryIndex((s) => s + 1);
-        setItemIndex(0);
-      } else {
-        onClose();
-      }
+      onClose();
     }
   }, [currentStory, itemIndex, storyIndex, stories.length, onClose]);
 
-  const goToPrevItem = useCallback(() => {
+  const goPrev = useCallback(() => {
     if (itemIndex > 0) {
       setItemIndex((i) => i - 1);
     } else if (storyIndex > 0) {
-      const prevStory = stories[storyIndex - 1];
+      const prev = stories[storyIndex - 1];
       setStoryIndex((s) => s - 1);
-      setItemIndex(Math.max(0, prevStory.items.length - 1));
+      setItemIndex(Math.max(0, (prev.items.length ?? 1) - 1));
     }
   }, [itemIndex, storyIndex, stories]);
 
-  // Animate progress bar for current item
+  // Progress bar animation
   useEffect(() => {
-    if (!visible || isOwnEmpty || addMode) return;
-
+    if (!visible || isOwnEmpty || !currentItem) return;
     progressAnim.setValue(0);
-    stopTimer();
-
-    if (!currentItem) return;
-
+    stopAnim();
+    const duration = currentItem.mediaType === 'video' ? VIDEO_DURATION : STORY_DURATION;
     animRef.current = Animated.timing(progressAnim, {
       toValue: 1,
-      duration: STORY_DURATION,
+      duration,
       useNativeDriver: false,
     });
-    animRef.current.start(({ finished }) => {
-      if (finished) goToNextItem();
-    });
+    animRef.current.start(({ finished }) => { if (finished) goNext(); });
+    return () => stopAnim();
+  }, [visible, storyIndex, itemIndex, isOwnEmpty]);
 
-    return () => stopTimer();
-  }, [visible, storyIndex, itemIndex, addMode, isOwnEmpty]);
-
-  // Mark seen when story changes
+  // Mark seen
   useEffect(() => {
     if (visible && currentStory && !currentStory.isOwn) {
       onSeen(currentStory.id);
     }
   }, [visible, storyIndex]);
 
-  // Reset when opening
+  // Reset on open
   useEffect(() => {
     if (visible) {
       setStoryIndex(initialIndex);
       setItemIndex(0);
-      setAddMode(false);
-      setAddText('');
     }
   }, [visible, initialIndex]);
 
-  const handleAddSubmit = () => {
-    if (!addText.trim()) return;
-    onAddStory?.(addText.trim(), ADD_STORY_GRADIENTS[selectedGradientIdx]);
-    setAddMode(false);
-    setAddText('');
-    onClose();
-  };
-
   if (!currentStory) return null;
 
-  // ── Add Story Mode ──
-  if (isOwnEmpty || addMode) {
+  // ── Own story with no items: show prompt to add ──
+  if (isOwnEmpty) {
     return (
-      <Modal visible={visible} animationType="slide" statusBarTranslucent onRequestClose={onClose}>
-        <LinearGradient
-          colors={ADD_STORY_GRADIENTS[selectedGradientIdx]}
-          style={[styles.addContainer, { paddingTop: isWeb ? 50 : insets.top + 10 }]}
-        >
-          <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          >
-            {/* Top bar */}
-            <View style={styles.addTopBar}>
-              <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                <Feather name="x" size={24} color="#fff" />
-              </TouchableOpacity>
-              <Text style={styles.addTitle}>Add to Story</Text>
-              <View style={{ width: 40 }} />
+      <Modal visible={visible} animationType="fade" statusBarTranslucent onRequestClose={onClose}>
+        <View style={[styles.container, { paddingTop: isWeb ? 20 : insets.top }]}>
+          <LinearGradient colors={['#1a3a4a', '#2d6a7f', '#1a3a4a']} style={StyleSheet.absoluteFill} />
+          <TouchableOpacity style={styles.closeTop} onPress={onClose}>
+            <Feather name="x" size={24} color="#fff" />
+          </TouchableOpacity>
+          <View style={styles.emptyOwnState}>
+            <View style={styles.emptyIconCircle}>
+              <Feather name="camera" size={32} color="#fff" />
             </View>
-
-            {/* Gradient picker */}
-            <View style={styles.gradientPicker}>
-              {ADD_STORY_GRADIENTS.map((g, i) => (
-                <TouchableOpacity
-                  key={i}
-                  onPress={() => setSelectedGradientIdx(i)}
-                  style={[
-                    styles.gradientDot,
-                    i === selectedGradientIdx && styles.gradientDotSelected,
-                  ]}
-                >
-                  <LinearGradient colors={g} style={styles.gradientDotInner} />
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Text input */}
-            <TextInput
-              style={styles.addInput}
-              value={addText}
-              onChangeText={setAddText}
-              placeholder="Share something inspiring..."
-              placeholderTextColor="rgba(255,255,255,0.5)"
-              multiline
-              maxLength={200}
-              autoFocus
-              textAlign="center"
-            />
-
-            {/* Share button */}
-            <TouchableOpacity
-              style={[styles.addShareBtn, !addText.trim() && { opacity: 0.4 }]}
-              onPress={handleAddSubmit}
-              disabled={!addText.trim()}
-            >
-              <Text style={styles.addShareText}>Share to Story</Text>
+            <Text style={styles.emptyTitle}>Share your story</Text>
+            <Text style={styles.emptySub}>Add a photo, video, or text to share with your community.</Text>
+            <TouchableOpacity style={styles.emptyAddBtn} onPress={() => { onClose(); onRequestAddStory(); }}>
+              <Feather name="plus" size={18} color="#fff" />
+              <Text style={styles.emptyAddText}>Add to Story</Text>
             </TouchableOpacity>
-          </KeyboardAvoidingView>
-        </LinearGradient>
+          </View>
+        </View>
       </Modal>
     );
   }
 
-  // ── Story Viewer Mode ──
-  const gradient = currentItem?.gradient ?? ['#111', '#222', '#111'];
+  // ── Background ──
+  const hasMedia = !!currentItem?.mediaUri;
+  const gradient = (currentItem?.gradient ?? ['#111', '#222', '#111']) as [string, string, string];
 
   return (
     <Modal visible={visible} animationType="fade" statusBarTranslucent onRequestClose={onClose}>
-      <View style={styles.viewerContainer}>
-        <LinearGradient
-          colors={gradient as [string, string, string]}
-          style={StyleSheet.absoluteFill}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        />
+      <View style={styles.container}>
+
+        {/* Background */}
+        {hasMedia && currentItem?.mediaType === 'image' ? (
+          <Image source={{ uri: currentItem.mediaUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : hasMedia && currentItem?.mediaType === 'video' ? (
+          <Video
+            ref={videoRef}
+            source={{ uri: currentItem.mediaUri! }}
+            style={StyleSheet.absoluteFill}
+            resizeMode={ResizeMode.COVER}
+            isLooping
+            shouldPlay={visible}
+            isMuted={false}
+          />
+        ) : (
+          <LinearGradient colors={gradient} style={StyleSheet.absoluteFill} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
+        )}
+
+        {/* Scrim over media for readability */}
+        {hasMedia && <View style={styles.scrim} />}
 
         {/* ── Progress bars ── */}
-        <View
-          style={[
-            styles.progressRow,
-            { paddingTop: isWeb ? 14 : insets.top + 6 },
-          ]}
-        >
+        <View style={[styles.progressRow, { paddingTop: isWeb ? 14 : insets.top + 6 }]}>
           {currentStory.items.map((_, i) => (
-            <View key={i} style={[styles.progressTrack, { marginRight: i < totalItems - 1 ? 4 : 0 }]}>
+            <View
+              key={i}
+              style={[
+                styles.progressTrack,
+                { marginRight: i < itemCount - 1 ? 4 : 0 },
+              ]}
+            >
               {i < itemIndex ? (
-                // Fully filled
                 <View style={[styles.progressFill, { width: '100%' }]} />
               ) : i === itemIndex ? (
-                // Animating
                 <Animated.View
                   style={[
                     styles.progressFill,
@@ -266,34 +207,58 @@ export function StoryViewer({
 
         {/* ── Story content ── */}
         <View style={styles.storyContent} pointerEvents="none">
-          {currentItem?.label && (
-            <Text style={styles.storyLabel}>{currentItem.label}</Text>
+          {/* Text-mode big text (no media) */}
+          {!hasMedia && currentItem?.text && (
+            <>
+              {currentItem.label && (
+                <Text style={styles.labelText}>{currentItem.label}</Text>
+              )}
+              <Text style={styles.bigText}>{currentItem.text}</Text>
+            </>
           )}
-          <Text style={styles.storyText}>{currentItem?.text}</Text>
         </View>
+
+        {/* ── Scripture overlay ── */}
+        {(currentItem?.scripture || currentItem?.label) && (
+          <View style={styles.scriptureOverlay} pointerEvents="none">
+            <Text style={styles.scriptureRef}>
+              {currentItem.scripture?.reference ?? currentItem.label}
+            </Text>
+            {currentItem.scripture && (
+              <Text style={styles.scriptureVerse} numberOfLines={4}>
+                {currentItem.scripture.text}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* ── Caption overlay (media + caption) ── */}
+        {hasMedia && currentItem?.text && (
+          <View style={styles.captionBar} pointerEvents="none">
+            <Text style={styles.captionText}>{currentItem.text}</Text>
+          </View>
+        )}
 
         {/* ── Tap zones ── */}
         <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-          <View style={styles.tapRow}>
-            {/* Prev */}
-            <TouchableWithoutFeedback onPress={goToPrevItem}>
+          <View style={[styles.tapRow, { marginTop: isWeb ? 80 : insets.top + 80 }]}>
+            <TouchableWithoutFeedback onPress={goPrev}>
               <View style={styles.tapLeft} />
             </TouchableWithoutFeedback>
-            {/* Next */}
-            <TouchableWithoutFeedback onPress={goToNextItem}>
+            <TouchableWithoutFeedback onPress={goNext}>
               <View style={styles.tapRight} />
             </TouchableWithoutFeedback>
           </View>
         </View>
 
-        {/* ── Own story: edit button ── */}
+        {/* ── Own story: add more button ── */}
         {currentStory.isOwn && (
           <TouchableOpacity
-            style={[styles.editStoryBtn, { bottom: isWeb ? 40 : insets.bottom + 30 }]}
-            onPress={() => setAddMode(true)}
+            style={[styles.addMoreBtn, { bottom: isWeb ? 40 : insets.bottom + 30 }]}
+            onPress={() => { onClose(); onRequestAddStory(); }}
           >
             <Feather name="plus" size={16} color="#fff" />
-            <Text style={styles.editStoryText}>Add to Story</Text>
+            <Text style={styles.addMoreText}>Add to Story</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -302,16 +267,13 @@ export function StoryViewer({
 }
 
 const styles = StyleSheet.create({
-  // ── Viewer ──
-  viewerContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
+  container: { flex: 1, backgroundColor: '#000' },
+
+  // Progress
   progressRow: {
     flexDirection: 'row',
     paddingHorizontal: 10,
     paddingBottom: 10,
-    gap: 0,
     zIndex: 10,
   },
   progressTrack: {
@@ -321,11 +283,9 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     overflow: 'hidden',
   },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#fff',
-    borderRadius: 2,
-  },
+  progressFill: { height: '100%', backgroundColor: '#fff', borderRadius: 2 },
+
+  // Header
   userHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -335,145 +295,115 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   headerAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.6)',
+    width: 36, height: 36, borderRadius: 18,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.6)',
   },
-  headerAvatarText: {
-    fontSize: 13,
-    fontFamily: 'Inter_700Bold',
-    color: '#fff',
-  },
+  headerAvatarText: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#fff' },
   headerInfo: { flex: 1 },
-  headerName: {
-    fontSize: 14,
-    fontFamily: 'Inter_700Bold',
-    color: '#fff',
-  },
-  headerTime: {
-    fontSize: 11,
-    fontFamily: 'Inter_400Regular',
-    color: 'rgba(255,255,255,0.65)',
-    marginTop: 1,
-  },
-  closeBtn: {
-    padding: 6,
-  },
+  headerName: { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#fff' },
+  headerTime: { fontSize: 11, fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.65)', marginTop: 1 },
+  closeBtn: { padding: 6 },
+  closeTop: { position: 'absolute', top: 16, right: 16, padding: 8, zIndex: 20 },
+
+  // Scrim
+  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.25)' },
+
+  // Story content (text mode)
   storyContent: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
-    gap: 16,
+    gap: 14,
   },
-  storyLabel: {
-    fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
-    color: 'rgba(255,255,255,0.7)',
-    textAlign: 'center',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
+  labelText: {
+    fontSize: 12, fontFamily: 'Inter_600SemiBold',
+    color: 'rgba(255,255,255,0.65)',
+    textAlign: 'center', letterSpacing: 0.6, textTransform: 'uppercase',
   },
-  storyText: {
-    fontSize: 26,
-    fontFamily: 'Inter_700Bold',
-    color: '#fff',
-    textAlign: 'center',
-    lineHeight: 36,
+  bigText: {
+    fontSize: 26, fontFamily: 'Inter_700Bold',
+    color: '#fff', textAlign: 'center', lineHeight: 36,
   },
-  tapRow: {
-    flex: 1,
-    flexDirection: 'row',
-    marginTop: 100, // below header
+
+  // Scripture overlay (bottom-left card)
+  scriptureOverlay: {
+    position: 'absolute',
+    bottom: 90,
+    left: 16,
+    right: 16,
+    backgroundColor: 'rgba(0,0,0,0.52)',
+    borderRadius: 14,
+    padding: 14,
+    borderLeftWidth: 3,
+    borderLeftColor: '#D4A843',
   },
+  scriptureRef: {
+    fontSize: 11, fontFamily: 'Inter_700Bold',
+    color: '#D4A843', marginBottom: 5,
+    textTransform: 'uppercase', letterSpacing: 0.6,
+  },
+  scriptureVerse: {
+    fontSize: 13, fontFamily: 'Inter_400Regular',
+    color: 'rgba(255,255,255,0.9)', lineHeight: 19, fontStyle: 'italic',
+  },
+
+  // Caption bar (media mode)
+  captionBar: {
+    position: 'absolute',
+    bottom: 20,
+    left: 16,
+    right: 16,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  captionText: {
+    fontSize: 15, fontFamily: 'Inter_600SemiBold',
+    color: '#fff', textAlign: 'center',
+  },
+
+  // Tap zones
+  tapRow: { flex: 1, flexDirection: 'row' },
   tapLeft: { flex: 1 },
   tapRight: { flex: 2 },
-  editStoryBtn: {
+
+  // Add more button
+  addMoreBtn: {
     position: 'absolute',
     alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.18)',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
+    borderColor: 'rgba(255,255,255,0.35)',
   },
-  editStoryText: {
-    color: '#fff',
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-  },
+  addMoreText: { color: '#fff', fontSize: 14, fontFamily: 'Inter_600SemiBold' },
 
-  // ── Add Story ──
-  addContainer: {
-    flex: 1,
+  // Empty own story state
+  emptyOwnState: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 32, gap: 16,
   },
-  addTopBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+  emptyIconCircle: {
+    width: 72, height: 72, borderRadius: 36,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
   },
-  addTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: 17,
-    fontFamily: 'Inter_700Bold',
-    color: '#fff',
+  emptyTitle: { fontSize: 22, fontFamily: 'Inter_700Bold', color: '#fff', textAlign: 'center' },
+  emptySub: { fontSize: 14, fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.65)', textAlign: 'center', lineHeight: 21 },
+  emptyAddBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    backgroundColor: '#E07A54',
+    paddingHorizontal: 24, paddingVertical: 13,
+    borderRadius: 28, marginTop: 8,
   },
-  gradientPicker: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 10,
-    paddingVertical: 12,
-  },
-  gradientDot: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  gradientDotSelected: {
-    borderColor: '#fff',
-    transform: [{ scale: 1.2 }],
-  },
-  gradientDotInner: {
-    width: '100%',
-    height: '100%',
-  },
-  addInput: {
-    flex: 1,
-    fontSize: 26,
-    fontFamily: 'Inter_700Bold',
-    color: '#fff',
-    textAlignVertical: 'center',
-    paddingHorizontal: 32,
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
-  },
-  addShareBtn: {
-    marginHorizontal: 32,
-    marginBottom: 32,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    borderRadius: 28,
-    paddingVertical: 14,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.5)',
-  },
-  addShareText: {
-    color: '#fff',
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
-  },
+  emptyAddText: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#fff' },
 });

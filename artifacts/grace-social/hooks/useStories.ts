@@ -1,12 +1,25 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 
+export interface StoryScripture {
+  reference: string;
+  text: string;
+}
+
 export interface StoryItem {
   id: string;
-  text: string;
+  // text / caption (optional when media is present)
+  text?: string;
+  // background gradient (used when no mediaUri)
   gradient: [string, string, string];
+  // optional scripture overlay
+  scripture?: StoryScripture;
+  // label shown above the text (legacy, kept for mock data)
   label?: string;
   timestamp: string;
+  // media
+  mediaUri?: string;
+  mediaType?: 'image' | 'video';
 }
 
 export interface Story {
@@ -20,6 +33,14 @@ export interface Story {
   items: StoryItem[];
   seen: boolean;
   isOwn?: boolean;
+}
+
+export interface AddStoryPayload {
+  text?: string;
+  gradient: [string, string, string];
+  scripture?: StoryScripture;
+  mediaUri?: string;
+  mediaType?: 'image' | 'video';
 }
 
 const MOCK_STORIES: Omit<Story, 'seen'>[] = [
@@ -59,7 +80,7 @@ const MOCK_STORIES: Omit<Story, 'seen'>[] = [
       {
         id: 'mi1',
         text: '"Trust in the LORD with all your heart and lean not on your own understanding."',
-        label: 'Proverbs 3:5',
+        scripture: { reference: 'Proverbs 3:5', text: 'Trust in the LORD with all your heart' },
         gradient: ['#1a2a1a', '#2a5a3a', '#1a3a2a'],
         timestamp: '3h ago',
       },
@@ -83,7 +104,7 @@ const MOCK_STORIES: Omit<Story, 'seen'>[] = [
       {
         id: 'si2',
         text: '"For I know the plans I have for you," declares the LORD',
-        label: 'Jeremiah 29:11',
+        scripture: { reference: 'Jeremiah 29:11', text: 'For I know the plans I have for you' },
         gradient: ['#2a1a3a', '#5a2a6a', '#3a1a4a'],
         timestamp: '4h ago',
       },
@@ -118,7 +139,7 @@ const MOCK_STORIES: Omit<Story, 'seen'>[] = [
       {
         id: 'ri1',
         text: '"Be still, and know that I am God."',
-        label: 'Psalm 46:10',
+        scripture: { reference: 'Psalm 46:10', text: 'Be still, and know that I am God' },
         gradient: ['#0f2a35', '#1a5065', '#0f2a35'],
         timestamp: '8h ago',
       },
@@ -129,10 +150,9 @@ const MOCK_STORIES: Omit<Story, 'seen'>[] = [
 export function useStories() {
   const { currentUser } = useAuth();
   const [seenMap, setSeenMap] = useState<Record<string, boolean>>({});
-  const [ownStory, setOwnStory] = useState<StoryItem | null>(null);
+  const [ownItems, setOwnItems] = useState<StoryItem[]>([]);
 
   const stories: Story[] = [
-    // Own story always first
     {
       id: 'story-own',
       userId: currentUser?.id ?? 0,
@@ -141,13 +161,10 @@ export function useStories() {
       color: currentUser?.color ?? '#4A90A4',
       avatarUrl: currentUser?.avatarUrl ?? null,
       initials: currentUser?.initials ?? 'Me',
-      items: ownStory
-        ? [ownStory]
-        : [],
+      items: ownItems,
       seen: false,
       isOwn: true,
     },
-    // Other users' stories
     ...MOCK_STORIES.map((s) => ({ ...s, seen: seenMap[s.id] ?? false })),
   ];
 
@@ -155,18 +172,28 @@ export function useStories() {
     setSeenMap((prev) => ({ ...prev, [storyId]: true }));
   }, []);
 
-  const addOwnStory = useCallback((text: string, gradient: [string, string, string]) => {
-    setOwnStory({
+  const addOwnStory = useCallback((payload: AddStoryPayload) => {
+    const item: StoryItem = {
       id: `own-${Date.now()}`,
-      text,
-      gradient,
+      text: payload.text,
+      gradient: payload.gradient,
+      scripture: payload.scripture,
+      mediaUri: payload.mediaUri,
+      mediaType: payload.mediaType,
       timestamp: 'Just now',
-    });
+    };
+    setOwnItems((prev) => [...prev, item]);
   }, []);
 
   const deleteOwnStory = useCallback(() => {
-    setOwnStory(null);
+    setOwnItems([]);
   }, []);
 
-  return { stories, markSeen, addOwnStory, deleteOwnStory, hasOwnStory: ownStory !== null };
+  return {
+    stories,
+    markSeen,
+    addOwnStory,
+    deleteOwnStory,
+    hasOwnStory: ownItems.length > 0,
+  };
 }
