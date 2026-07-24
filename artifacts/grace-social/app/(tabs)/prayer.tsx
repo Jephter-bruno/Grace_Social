@@ -227,11 +227,17 @@ export default function PrayerScreen() {
         {/* FAB to share testimony */}
         <TouchableOpacity
           style={[styles.fab, { backgroundColor: CORAL, bottom: (isWeb ? 34 : insets.bottom) + 70 }]}
-          onPress={() => {}}
+          onPress={() => setShowTestimonyModal(true)}
           activeOpacity={0.85}
         >
           <Feather name="plus" size={24} color="#fff" />
         </TouchableOpacity>
+
+        <NewTestimonyModal
+          visible={showTestimonyModal}
+          onClose={() => setShowTestimonyModal(false)}
+          onSubmit={addTestimony}
+        />
 
         <TestimonyCommentSheet
           testimony={commentTestimony}
