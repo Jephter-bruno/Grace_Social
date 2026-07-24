@@ -37,7 +37,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 
 const QUICK_CARDS = [
   { id: 'bible', icon: 'book-open', label: 'Bible', sub: 'Read Scripture', onPress: () => router.push('/bible') },
-  { id: 'devotionals', icon: 'bookmark', label: 'Devotionals', sub: 'Daily reading', onPress: () => {} },
+  { id: 'devotionals', icon: 'bookmark', label: 'Devotionals', sub: 'Daily reading', onPress: () => router.push('/devotionals') },
 ];
 
 export default function PrayerScreen() {
