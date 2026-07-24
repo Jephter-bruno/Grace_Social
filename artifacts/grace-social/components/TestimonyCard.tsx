@@ -10,7 +10,7 @@ import {
 import { useColors } from '@/hooks/useColors';
 import { Testimony } from '@/hooks/useTestimonies';
 
-const CORAL = '#E07A54';
+const AMBER = '#D4A843';
 
 function initials(name: string): string {
   return name
@@ -29,11 +29,6 @@ function formatDate(iso: string): string {
     const diffH = diffMs / 3600000;
     if (diffH < 1) return 'just now';
     if (diffH < 24) return `${Math.floor(diffH)}h ago`;
-    const diffD = Math.floor(diffH / 24);
-    if (diffD < 7) {
-      const month = d.toLocaleString('en-US', { month: 'short' });
-      return `${month} ${d.getDate()}`;
-    }
     const month = d.toLocaleString('en-US', { month: 'short' });
     return `${month} ${d.getDate()}`;
   } catch {
@@ -59,25 +54,24 @@ export function TestimonyCard({ testimony, onLike, onComment }: TestimonyCardPro
     onLike(testimony.id);
   }, [onLike, testimony.id, scaleAnim]);
 
-  const avatarInits = initials(testimony.display_name);
-
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      {/* Header */}
+      {/* Header: avatar | divider | name | badge */}
       <View style={styles.header}>
         <View style={[styles.avatar, { backgroundColor: testimony.color }]}>
-          <Text style={styles.avatarText}>{avatarInits}</Text>
+          <Text style={styles.avatarText}>{initials(testimony.display_name)}</Text>
         </View>
+
+        <View style={[styles.vertDivider, { backgroundColor: colors.border }]} />
+
         <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
           {testimony.display_name}
         </Text>
-        <View style={[styles.badge, { backgroundColor: colors.muted }]}>
-          <Text style={[styles.badgeText, { color: colors.foreground }]}>✨ Answered</Text>
+
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>✨ Answered</Text>
         </View>
       </View>
-
-      {/* Divider */}
-      <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
       {/* Title */}
       <Text style={[styles.title, { color: colors.foreground }]}>{testimony.title}</Text>
@@ -89,9 +83,7 @@ export function TestimonyCard({ testimony, onLike, onComment }: TestimonyCardPro
       <View style={styles.footer}>
         {/* Like */}
         <TouchableOpacity style={styles.actionBtn} onPress={handleLike} activeOpacity={0.75}>
-          <Animated.Text
-            style={[styles.heartIcon, { transform: [{ scale: scaleAnim }] }]}
-          >
+          <Animated.Text style={[styles.heartIcon, { transform: [{ scale: scaleAnim }] }]}>
             {testimony.is_liked ? '❤️' : '🤍'}
           </Animated.Text>
           <Text style={[styles.actionCount, { color: colors.mutedForeground }]}>
@@ -131,11 +123,13 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
+
+  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
     gap: 10,
+    marginBottom: 12,
   },
   avatar: {
     width: 36,
@@ -143,11 +137,17 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   avatarText: {
     fontSize: 13,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
+  },
+  vertDivider: {
+    width: 1,
+    height: 20,
+    flexShrink: 0,
   },
   name: {
     flex: 1,
@@ -155,20 +155,21 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
   },
   badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: AMBER + '28',
+    borderWidth: 1,
+    borderColor: AMBER + '55',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 20,
+    flexShrink: 0,
   },
   badgeText: {
     fontSize: 12,
     fontFamily: 'Inter_600SemiBold',
+    color: AMBER,
   },
-  divider: {
-    height: 1,
-    marginBottom: 12,
-  },
+
+  // Body
   title: {
     fontSize: 16,
     fontFamily: 'Inter_700Bold',
@@ -181,6 +182,8 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     marginBottom: 14,
   },
+
+  // Footer
   footer: {
     flexDirection: 'row',
     alignItems: 'center',

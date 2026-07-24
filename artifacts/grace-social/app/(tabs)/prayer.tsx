@@ -16,6 +16,7 @@ import { router } from 'expo-router';
 
 import { AdCard } from '@/components/AdCard';
 import { NewPrayerModal } from '@/components/NewPrayerModal';
+import { NewTestimonyModal } from '@/components/NewTestimonyModal';
 import { PrayerCard } from '@/components/PrayerCard';
 import { TestimonyCard } from '@/components/TestimonyCard';
 import { TestimonyCommentSheet } from '@/components/TestimonyCommentSheet';
@@ -48,8 +49,9 @@ export default function PrayerScreen() {
   const [active, setActive] = useState<FilterKey>('all');
   const [tab, setTab] = useState<TabKey>('wall');
   const [showModal, setShowModal] = useState(false);
+  const [showTestimonyModal, setShowTestimonyModal] = useState(false);
   const [commentTestimony, setCommentTestimony] = useState<Testimony | null>(null);
-  const { testimonies, loading: testimonyLoading, error: testimonyError, toggleLike } = useTestimonies();
+  const { testimonies, loading: testimonyLoading, error: testimonyError, toggleLike, addTestimony } = useTestimonies();
 
   const filtered = useMemo(
     () => (active === 'all' ? prayers : prayers.filter((p) => p.category === active)),
