@@ -18,10 +18,13 @@ import { HomePrayerWall } from '@/components/HomePrayerWall';
 import { NewPostModal } from '@/components/NewPostModal';
 import { PostCard } from '@/components/PostCard';
 import { RealmSpotlight } from '@/components/RealmSpotlight';
+import { StoriesBar } from '@/components/StoriesBar';
+import { StoryViewer } from '@/components/StoryViewer';
 import { SuggestedCommunities } from '@/components/SuggestedCommunities';
 import { SuggestedPeopleCard } from '@/components/SuggestedPeopleCard';
 import { Post, useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { useStories } from '@/hooks/useStories';
 import { useEffect } from 'react';
 
 type FeedItem =
@@ -62,6 +65,8 @@ export default function HomeScreen() {
   const topPad = isWeb ? 67 : insets.top;
   const [showModal, setShowModal] = useState(false);
   const [activePostId, setActivePostId] = useState<string | null>(null);
+  const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
+  const { stories, markSeen, addOwnStory, hasOwnStory } = useStories();
 
   useEffect(() => {
     if (pendingVerse) {
@@ -103,11 +108,15 @@ export default function HomeScreen() {
   const renderHeader = useCallback(
     () => (
       <>
+        <StoriesBar
+          stories={stories}
+          onPress={(idx) => setStoryViewerIndex(idx)}
+        />
         <DailyVerseCard />
         <SuggestedPeopleCard />
       </>
     ),
-    []
+    [stories]
   );
 
   return (
@@ -164,6 +173,16 @@ export default function HomeScreen() {
       </TouchableOpacity>
 
       <NewPostModal visible={showModal} onClose={handleModalClose} initialVerse={pendingVerse} />
+
+      <StoryViewer
+        stories={stories}
+        initialIndex={storyViewerIndex ?? 0}
+        visible={storyViewerIndex !== null}
+        onClose={() => setStoryViewerIndex(null)}
+        onSeen={markSeen}
+        onAddStory={addOwnStory}
+        hasOwnStory={hasOwnStory}
+      />
     </View>
   );
 }
