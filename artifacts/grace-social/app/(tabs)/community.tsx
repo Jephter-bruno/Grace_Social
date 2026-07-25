@@ -705,15 +705,17 @@ function CommunityCard({ community }: { community: Community }) {
           <Text style={[cc.name, { color: colors.foreground }]} numberOfLines={1} ellipsizeMode="tail">
             {community.name}
           </Text>
-          <TouchableOpacity
-            style={[cc.joinBtn, community.isJoined && { borderColor: colors.border }]}
-            onPress={(e) => { e.stopPropagation?.(); toggleJoin(community.id); }}
-            activeOpacity={0.7}
-          >
-            <Text style={[cc.joinText, { color: community.isJoined ? colors.mutedForeground : CORAL }]}>
-              {community.isJoined ? 'Joined ✓' : 'Join'}
-            </Text>
-          </TouchableOpacity>
+          {(!community.isPrivate || community.isJoined) && (
+            <TouchableOpacity
+              style={[cc.joinBtn, community.isJoined && { borderColor: colors.border }]}
+              onPress={(e) => { e.stopPropagation?.(); toggleJoin(community.id); }}
+              activeOpacity={0.7}
+            >
+              <Text style={[cc.joinText, { color: community.isJoined ? colors.mutedForeground : CORAL }]}>
+                {community.isJoined ? 'Joined ✓' : 'Join'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Description */}
