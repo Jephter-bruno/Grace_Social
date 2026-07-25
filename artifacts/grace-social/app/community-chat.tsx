@@ -156,7 +156,7 @@ type AttachmentMode = null | 'verse' | 'prayer' | 'image';
 
 export default function CommunityChatScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { communities } = useApp();
+  const { communities, requestJoin } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
@@ -407,6 +407,59 @@ export default function CommunityChatScreen() {
     );
   };
 
+  // Gate: private community the user hasn't been approved to join
+  if (community && community.isPrivate && !community.isJoined) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.header, { paddingTop: topPad + 8, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
+            <Feather name="arrow-left" size={22} color={colors.foreground} />
+          </TouchableOpacity>
+          <View style={[styles.headerIconWrap, { backgroundColor: communityColor + '20' }]}>
+            <Feather name={(community.iconName as any)} size={18} color={communityColor} />
+          </View>
+          <View style={styles.headerInfo}>
+            <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
+              {community.name}
+            </Text>
+            <Text style={[styles.onlineText, { color: colors.mutedForeground }]}>Private Community</Text>
+          </View>
+          <View style={styles.headerBtn} />
+        </View>
+
+        <View style={styles.gateCentered}>
+          <View style={[styles.gateCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.gateIconWrap, { backgroundColor: communityColor + '18' }]}>
+              <Feather name="lock" size={32} color={communityColor} />
+            </View>
+            <Text style={[styles.gateTitle, { color: colors.foreground }]}>Members-Only Chat</Text>
+            <Text style={[styles.gateDesc, { color: colors.mutedForeground }]}>
+              This group chat is only available to approved members of {community.name}.
+              Request to join to participate in the conversation.
+            </Text>
+            {!community.joinRequested ? (
+              <TouchableOpacity
+                style={[styles.gateBtn, { backgroundColor: communityColor }]}
+                onPress={() => { requestJoin(community.id); }}
+              >
+                <Feather name="user-plus" size={16} color="#fff" />
+                <Text style={styles.gateBtnText}>Request to Join</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={[styles.gateBtn, { backgroundColor: colors.muted, borderWidth: 1.5, borderColor: communityColor }]}>
+                <Feather name="clock" size={16} color={communityColor} />
+                <Text style={[styles.gateBtnText, { color: communityColor }]}>Request Sent — Pending Approval</Text>
+              </View>
+            )}
+            <TouchableOpacity onPress={() => router.back()} style={styles.gateBack}>
+              <Text style={[styles.gateBackText, { color: colors.mutedForeground }]}>Go back</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { paddingTop: topPad + 8, borderBottomColor: colors.border, backgroundColor: colors.background }]}>
@@ -632,4 +685,14 @@ const styles = StyleSheet.create({
   reactionPickerGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center' },
   reactionPickerItem: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   reactionPickerEmoji: { fontSize: 26 },
+  // Private gate
+  gateCentered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  gateCard: { borderRadius: 24, borderWidth: 1, padding: 32, alignItems: 'center', gap: 14, width: '100%', maxWidth: 380 },
+  gateIconWrap: { width: 80, height: 80, borderRadius: 24, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  gateTitle: { fontSize: 20, fontFamily: 'Inter_700Bold', textAlign: 'center' },
+  gateDesc: { fontSize: 14, fontFamily: 'Inter_400Regular', lineHeight: 21, textAlign: 'center' },
+  gateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 24, paddingHorizontal: 24, paddingVertical: 14, marginTop: 4, minWidth: 220 },
+  gateBtnText: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#fff' },
+  gateBack: { marginTop: 4 },
+  gateBackText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
 });

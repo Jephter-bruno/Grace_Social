@@ -90,6 +90,7 @@ export interface Community {
   color: string;
   isJoined: boolean;
   isPrivate?: boolean;
+  joinRequested?: boolean;
   imageUrl?: string;
 }
 
@@ -164,6 +165,7 @@ interface AppContextType {
   togglePray: (prayerId: string) => void;
   toggleFollow: (handle: string) => void;
   toggleJoin: (communityId: string) => void;
+  requestJoin: (communityId: string) => void;
   toggleReelLike: (reelId: string) => void;
   toggleReelSave: (reelId: string) => void;
   incrementReelShares: (reelId: string) => void;
@@ -468,7 +470,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toggleJoin = useCallback((communityId: string) => {
-    setCommunities((prev) => prev.map((c) => c.id === communityId ? { ...c, isJoined: !c.isJoined, members: c.isJoined ? c.members - 1 : c.members + 1 } : c));
+    setCommunities((prev) => prev.map((c) => c.id === communityId ? { ...c, isJoined: !c.isJoined, joinRequested: false, members: c.isJoined ? c.members - 1 : c.members + 1 } : c));
+  }, []);
+
+  const requestJoin = useCallback((communityId: string) => {
+    setCommunities((prev) => prev.map((c) => c.id === communityId ? { ...c, joinRequested: !c.joinRequested } : c));
   }, []);
 
   const addPrayer = useCallback((prayer: Omit<Prayer, 'id'>) => {
@@ -571,7 +577,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const followingCount = Object.values(followedHandles).filter(Boolean).length;
 
   return (
-    <AppContext.Provider value={{ posts, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, toggleReelSave, incrementReelShares, incrementPostShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead }}>
+    <AppContext.Provider value={{ posts, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, requestJoin, toggleReelLike, toggleReelSave, incrementReelShares, incrementPostShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead }}>
       {children}
     </AppContext.Provider>
   );

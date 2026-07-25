@@ -41,7 +41,7 @@ type Tab = 'feed' | 'members' | 'about';
 
 export default function CommunityDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { communities, toggleJoin } = useApp();
+  const { communities, toggleJoin, requestJoin } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
@@ -67,6 +67,9 @@ export default function CommunityDetailScreen() {
   const posts = COMMUNITY_POSTS.default;
   const members = COMMUNITY_MEMBERS.default;
 
+  // A private community the user hasn't joined yet (and isn't approved)
+  const isLocked = !!community.isPrivate && !community.isJoined;
+
   const toggleLike = (postId: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setLikedPosts((prev) => {
@@ -79,11 +82,43 @@ export default function CommunityDetailScreen() {
 
   const handleJoin = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (community.isPrivate) {
+      requestJoin(community.id);
+    } else {
+      toggleJoin(community.id);
+    }
+  };
+
+  const handleLeave = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     toggleJoin(community.id);
   };
 
   const pinnedPost = posts.find((p) => p.isPinned);
   const feedPosts = posts.filter((p) => !p.isPinned);
+
+  // Join / request button label + style
+  const joinLabel = community.isJoined
+    ? 'Joined'
+    : community.isPrivate
+      ? community.joinRequested ? 'Requested' : 'Request to Join'
+      : 'Join Community';
+
+  const joinIcon = community.isJoined
+    ? 'check'
+    : community.isPrivate
+      ? community.joinRequested ? 'clock' : 'lock'
+      : 'plus';
+
+  const joinBg = community.isJoined || community.joinRequested
+    ? colors.muted
+    : community.color;
+
+  const joinFg = community.isJoined || community.joinRequested
+    ? community.color
+    : '#fff';
+
+  const joinBorder = community.color;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -104,7 +139,17 @@ export default function CommunityDetailScreen() {
           <View style={[styles.communityIcon, { backgroundColor: community.color + '25' }]}>
             <Feather name={community.iconName as any} size={36} color={community.color} />
           </View>
-          <Text style={[styles.communityName, { color: colors.foreground }]}>{community.name}</Text>
+
+          <View style={styles.nameBadgeRow}>
+            <Text style={[styles.communityName, { color: colors.foreground }]}>{community.name}</Text>
+            {community.isPrivate && (
+              <View style={[styles.privateBadge, { backgroundColor: community.color + '20', borderColor: community.color + '40' }]}>
+                <Feather name="lock" size={11} color={community.color} />
+                <Text style={[styles.privateBadgeText, { color: community.color }]}>Private</Text>
+              </View>
+            )}
+          </View>
+
           <Text style={[styles.communityDesc, { color: colors.mutedForeground }]}>{community.description}</Text>
 
           <View style={styles.statsRow}>
@@ -114,7 +159,7 @@ export default function CommunityDetailScreen() {
             </View>
             <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
             <View style={styles.statItem}>
-              <Text style={[styles.statNum, { color: colors.foreground }]}>{posts.length * 7}</Text>
+              <Text style={[styles.statNum, { color: colors.foreground }]}>{isLocked ? '—' : posts.length * 7}</Text>
               <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Posts</Text>
             </View>
             <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
@@ -125,33 +170,44 @@ export default function CommunityDetailScreen() {
           </View>
 
           <View style={styles.heroButtons}>
-            <TouchableOpacity
-              style={[
-                styles.joinBtn,
-                { backgroundColor: community.isJoined ? colors.muted : community.color, borderColor: community.color },
-              ]}
-              onPress={handleJoin}
-            >
-              <Feather
-                name={community.isJoined ? 'check' : 'plus'}
-                size={16}
-                color={community.isJoined ? community.color : '#fff'}
-              />
-              <Text style={[styles.joinText, { color: community.isJoined ? community.color : '#fff' }]}>
-                {community.isJoined ? 'Joined' : 'Join Community'}
-              </Text>
-            </TouchableOpacity>
+            {/* Left button: join / leave / request */}
+            {community.isJoined ? (
+              <TouchableOpacity
+                style={[styles.joinBtn, { backgroundColor: colors.muted, borderColor: community.color }]}
+                onPress={handleLeave}
+              >
+                <Feather name="check" size={16} color={community.color} />
+                <Text style={[styles.joinText, { color: community.color }]}>Joined</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={[styles.joinBtn, { backgroundColor: joinBg, borderColor: joinBorder }]}
+                onPress={handleJoin}
+              >
+                <Feather name={joinIcon as any} size={16} color={joinFg} />
+                <Text style={[styles.joinText, { color: joinFg }]}>{joinLabel}</Text>
+              </TouchableOpacity>
+            )}
 
-            <TouchableOpacity
-              style={[styles.chatBtn, { borderColor: community.color, backgroundColor: community.color + '15' }]}
-              onPress={() => router.push({ pathname: '/community-chat' as any, params: { id: community.id } })}
-            >
-              <Feather name="message-circle" size={16} color={community.color} />
-              <Text style={[styles.chatBtnText, { color: community.color }]}>Group Chat</Text>
-            </TouchableOpacity>
+            {/* Right button: group chat — only when the user has access */}
+            {!isLocked ? (
+              <TouchableOpacity
+                style={[styles.chatBtn, { borderColor: community.color, backgroundColor: community.color + '15' }]}
+                onPress={() => router.push({ pathname: '/community-chat' as any, params: { id: community.id } })}
+              >
+                <Feather name="message-circle" size={16} color={community.color} />
+                <Text style={[styles.chatBtnText, { color: community.color }]}>Group Chat</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={[styles.chatBtn, { borderColor: colors.border, backgroundColor: colors.muted, opacity: 0.5 }]}>
+                <Feather name="lock" size={16} color={colors.mutedForeground} />
+                <Text style={[styles.chatBtnText, { color: colors.mutedForeground }]}>Group Chat</Text>
+              </View>
+            )}
           </View>
         </View>
 
+        {/* Tabs — About is always visible; Feed & Members are gated for locked private communities */}
         <View style={[styles.tabs, { borderBottomColor: colors.border }]}>
           {(['feed', 'members', 'about'] as Tab[]).map((tab) => (
             <TouchableOpacity
@@ -166,7 +222,41 @@ export default function CommunityDetailScreen() {
           ))}
         </View>
 
-        {activeTab === 'feed' && (
+        {/* Private gate for Feed and Members tabs */}
+        {isLocked && (activeTab === 'feed' || activeTab === 'members') && (
+          <View style={styles.gateSection}>
+            <View style={[styles.gateCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.gateIconWrap, { backgroundColor: community.color + '18' }]}>
+                <Feather name="lock" size={32} color={community.color} />
+              </View>
+              <Text style={[styles.gateTitle, { color: colors.foreground }]}>
+                {activeTab === 'feed' ? 'Members-Only Feed' : 'Members-Only Directory'}
+              </Text>
+              <Text style={[styles.gateDesc, { color: colors.mutedForeground }]}>
+                {activeTab === 'feed'
+                  ? 'The posts in this private community are only visible to approved members. Request to join to see what\'s being shared.'
+                  : 'The member list for this private community is only visible to approved members. Request to join to connect with the community.'}
+              </Text>
+              {!community.joinRequested ? (
+                <TouchableOpacity
+                  style={[styles.gateBtn, { backgroundColor: community.color }]}
+                  onPress={handleJoin}
+                >
+                  <Feather name="user-plus" size={16} color="#fff" />
+                  <Text style={styles.gateBtnText}>Request to Join</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.gateBtn, { backgroundColor: colors.muted, borderWidth: 1.5, borderColor: community.color }]}>
+                  <Feather name="clock" size={16} color={community.color} />
+                  <Text style={[styles.gateBtnText, { color: community.color }]}>Request Sent — Pending Approval</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Feed tab — only for members */}
+        {activeTab === 'feed' && !isLocked && (
           <View style={styles.feedSection}>
             {pinnedPost && (
               <View style={[styles.pinnedBanner, { backgroundColor: community.color + '12', borderColor: community.color + '40' }]}>
@@ -221,7 +311,8 @@ export default function CommunityDetailScreen() {
           </View>
         )}
 
-        {activeTab === 'members' && (
+        {/* Members tab — only for members */}
+        {activeTab === 'members' && !isLocked && (
           <View style={styles.membersSection}>
             <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
               {community.members.toLocaleString()} MEMBERS
@@ -291,7 +382,10 @@ const styles = StyleSheet.create({
   iconBtn: { padding: 4 },
   heroSection: { alignItems: 'center', paddingVertical: 24, paddingHorizontal: 20, gap: 8 },
   communityIcon: { width: 72, height: 72, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  nameBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'center' },
   communityName: { fontSize: 22, fontFamily: 'Inter_700Bold', textAlign: 'center' },
+  privateBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, borderRadius: 8, borderWidth: 1, paddingHorizontal: 8, paddingVertical: 3 },
+  privateBadgeText: { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 0.3 },
   communityDesc: { fontSize: 14, fontFamily: 'Inter_400Regular', lineHeight: 20, textAlign: 'center' },
   statsRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 0 },
   statItem: { alignItems: 'center', paddingHorizontal: 24 },
@@ -306,6 +400,15 @@ const styles = StyleSheet.create({
   tabs: { flexDirection: 'row', borderBottomWidth: 0.5 },
   tab: { flex: 1, alignItems: 'center', paddingVertical: 13 },
   tabText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  // Private gate
+  gateSection: { padding: 20 },
+  gateCard: { borderRadius: 20, borderWidth: 1, padding: 28, alignItems: 'center', gap: 14 },
+  gateIconWrap: { width: 72, height: 72, borderRadius: 22, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  gateTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', textAlign: 'center' },
+  gateDesc: { fontSize: 14, fontFamily: 'Inter_400Regular', lineHeight: 21, textAlign: 'center' },
+  gateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 24, paddingHorizontal: 24, paddingVertical: 13, marginTop: 4, minWidth: 220 },
+  gateBtnText: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#fff' },
+  // Feed
   feedSection: { padding: 14, gap: 12 },
   pinnedBanner: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10 },
   pinnedHeader: { flexDirection: 'row', alignItems: 'center', gap: 5 },
@@ -320,6 +423,7 @@ const styles = StyleSheet.create({
   postActions: { flexDirection: 'row', gap: 20, paddingTop: 10, borderTopWidth: 0.5 },
   actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   actionText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
+  // Members
   membersSection: { padding: 14 },
   sectionLabel: { fontSize: 11, fontFamily: 'Inter_700Bold', letterSpacing: 0.8, marginBottom: 12 },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 0.5 },
@@ -328,6 +432,7 @@ const styles = StyleSheet.create({
   roleBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, alignSelf: 'flex-start' },
   roleText: { fontSize: 11, fontFamily: 'Inter_700Bold' },
   moreMembersHint: { textAlign: 'center', fontSize: 13, fontFamily: 'Inter_400Regular', paddingTop: 16 },
+  // About
   aboutSection: { padding: 14, gap: 12 },
   aboutCard: { borderRadius: 14, borderWidth: 1, padding: 16, gap: 12 },
   aboutCardTitle: { fontSize: 15, fontFamily: 'Inter_700Bold' },
