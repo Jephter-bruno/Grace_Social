@@ -140,6 +140,36 @@ export interface PendingVerse {
   text: string;
 }
 
+// ─── Direct-message types ─────────────────────────────────────────────────────
+
+export type DMMediaType = 'image' | 'video' | 'audio';
+
+export interface DMMessage {
+  id: string;
+  text: string;
+  fromMe: boolean;
+  time: string;
+  replyTo?: string;
+  mediaType?: DMMediaType;
+  mediaUri?: string;
+  audioDuration?: number;
+}
+
+export interface Conversation {
+  id: string;
+  /** Links to a community member so we can find-or-create instead of duplicating */
+  memberId?: string;
+  userName: string;
+  userInitials: string;
+  userColor: string;
+  avatarUrl?: string;
+  status: string;
+  lastMessage: string;
+  time: string;
+  unread: number;
+  messages: DMMessage[];
+}
+
 interface AppContextType {
   posts: Post[];
   prayers: Prayer[];
@@ -178,9 +208,89 @@ interface AppContextType {
   toggleCommentLike: (postId: string, commentId: string) => void;
   togglePrayerCommentLike: (prayerId: string, commentId: string) => void;
   markAllRead: () => void;
+  conversations: Conversation[];
+  startOrOpenConversation: (member: { id: string; name: string; initials: string; color: string }) => string;
+  markConversationRead: (convId: string) => void;
+  addConversation: (conv: Omit<Conversation, 'id' | 'messages'>) => string;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
+
+// ─── Seed DM conversations ────────────────────────────────────────────────────
+
+const INITIAL_CONVERSATIONS: Conversation[] = [
+  {
+    id: 'conv_1',
+    userName: 'Pastor James',
+    userInitials: 'PJ',
+    userColor: '#4A90A4',
+    avatarUrl: 'https://i.pravatar.cc/150?img=12',
+    status: 'Active now',
+    lastMessage: 'Blessings! See you Sunday 🙏',
+    time: '9:32 AM',
+    unread: 2,
+    messages: [
+      { id: 'm1', text: "Hello! Sharing this week's sermon photo 📸", fromMe: false, time: '9:15 AM' },
+      { id: 'm2', text: '', fromMe: false, time: '9:16 AM', mediaType: 'image', mediaUri: 'https://picsum.photos/seed/sermon/400/300' },
+      { id: 'm3', text: 'Wow that looks amazing!', fromMe: true, time: '9:20 AM', replyTo: "Hello! Sharing this week's sermon photo 📸" },
+      { id: 'm4', text: 'Here is a short clip from service 🎥', fromMe: false, time: '9:22 AM' },
+      { id: 'm5', text: '', fromMe: false, time: '9:23 AM', mediaType: 'video', mediaUri: 'https://picsum.photos/seed/church/400/300' },
+      { id: 'm6', text: 'Doing great, thank you Pastor!', fromMe: true, time: '9:25 AM' },
+      { id: 'm7', text: 'Praise the Lord! Keep the faith strong 🙏', fromMe: false, time: '9:28 AM' },
+      { id: 'm8', text: 'Always do!', fromMe: true, time: '9:30 AM', replyTo: 'Praise the Lord! Keep the faith strong 🙏' },
+      { id: 'm9', text: 'Blessings! See you Sunday 🙏', fromMe: false, time: '9:32 AM' },
+    ],
+  },
+  {
+    id: 'conv_2',
+    userName: 'Grace Community',
+    userInitials: 'GC',
+    userColor: '#27AE60',
+    avatarUrl: 'https://i.pravatar.cc/150?img=32',
+    status: 'Active yesterday',
+    lastMessage: 'Prayer meeting tonight at 7pm',
+    time: 'Yesterday',
+    unread: 0,
+    messages: [
+      { id: 'm1', text: 'Welcome to Grace Community!', fromMe: false, time: 'Mon' },
+      { id: 'm2', text: 'Thank you, glad to be here!', fromMe: true, time: 'Mon' },
+      { id: 'm3', text: 'Prayer meeting tonight at 7pm', fromMe: false, time: 'Yesterday' },
+      { id: 'm4', text: 'I will be there 🙏', fromMe: true, time: 'Yesterday', replyTo: 'Prayer meeting tonight at 7pm' },
+    ],
+  },
+  {
+    id: 'conv_3',
+    userName: 'Sarah M.',
+    userInitials: 'SM',
+    userColor: '#E91E8C',
+    avatarUrl: 'https://i.pravatar.cc/150?img=47',
+    status: 'Active 2 hours ago',
+    lastMessage: 'Amen! 🙌',
+    time: 'Monday',
+    unread: 0,
+    messages: [
+      { id: 'm1', text: 'Your prayer was so moving today', fromMe: false, time: 'Monday' },
+      { id: 'm2', text: 'Thank you so much! It came from the heart ❤️', fromMe: true, time: 'Monday' },
+      { id: 'm3', text: 'You could tell! Really touched my soul', fromMe: false, time: 'Monday' },
+      { id: 'm4', text: 'Amen! 🙌', fromMe: false, time: 'Monday' },
+    ],
+  },
+  {
+    id: 'conv_4',
+    userName: 'Youth Group',
+    userInitials: 'YG',
+    userColor: '#9C27B0',
+    avatarUrl: 'https://i.pravatar.cc/150?img=60',
+    status: 'Active 5 hours ago',
+    lastMessage: "Don't forget the retreat next weekend!",
+    time: 'Sunday',
+    unread: 1,
+    messages: [
+      { id: 'm1', text: "Don't forget the retreat next weekend!", fromMe: false, time: 'Sunday' },
+      { id: 'm2', text: "Can't wait, already packed! 🏕️", fromMe: true, time: 'Sunday', replyTo: "Don't forget the retreat next weekend!" },
+    ],
+  },
+];
 
 
 const INITIAL_POSTS: Post[] = [
