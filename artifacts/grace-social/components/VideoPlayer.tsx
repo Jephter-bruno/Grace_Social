@@ -8,9 +8,10 @@ interface VideoPlayerProps {
   muted?: boolean;
   style?: ViewStyle;
   loop?: boolean;
+  contentFit?: 'cover' | 'contain' | 'fill';
 }
 
-export function VideoPlayer({ uri, isActive, muted = true, style, loop = true }: VideoPlayerProps) {
+export function VideoPlayer({ uri, isActive, muted = true, style, loop = true, contentFit = 'cover' }: VideoPlayerProps) {
   const player = useVideoPlayer({ uri }, (p) => {
     p.loop = loop;
     p.muted = muted;
@@ -34,7 +35,7 @@ export function VideoPlayer({ uri, isActive, muted = true, style, loop = true }:
     <VideoView
       player={player}
       style={[styles.video, style]}
-      contentFit="cover"
+      contentFit={contentFit}
       nativeControls={false}
     />
   );
