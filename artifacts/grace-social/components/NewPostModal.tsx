@@ -59,10 +59,10 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
 
   const canShare = caption.trim().length > 0;
 
-  const hasVideo = mediaItems.some((m) => m.type === 'video');
-  const canAddMore = mediaItems.length < MAX_MEDIA && !hasVideo;
+  const canAddMore = mediaItems.length < MAX_MEDIA;
 
-  const pickImages = async () => {
+  // Picks photos AND videos together — mixed selection allowed
+  const pickMedia = async () => {
     Haptics.selectionAsync();
     setPickingMedia(true);
     try {
@@ -72,38 +72,18 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
       }
       const remaining = MAX_MEDIA - mediaItems.length;
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
+        mediaTypes: ['images', 'videos'],
         allowsMultipleSelection: true,
         selectionLimit: remaining,
         quality: 0.85,
+        videoMaxDuration: 60,
       });
       if (!result.canceled) {
-        const newItems: PostMediaItem[] = result.assets.map((a) => ({ uri: a.uri, type: 'image' }));
+        const newItems: PostMediaItem[] = result.assets.map((a) => ({
+          uri: a.uri,
+          type: a.type === 'video' ? 'video' : 'image',
+        }));
         setMediaItems((prev) => [...prev, ...newItems].slice(0, MAX_MEDIA));
-      }
-    } catch {
-    } finally {
-      setPickingMedia(false);
-    }
-  };
-
-  const pickVideo = async () => {
-    Haptics.selectionAsync();
-    setPickingMedia(true);
-    try {
-      if (!isWeb) {
-        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (perm.status !== 'granted') return;
-      }
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['videos'],
-        allowsEditing: true,
-        videoMaxDuration: 60,
-        quality: 0.8,
-      });
-      if (!result.canceled && result.assets[0]) {
-        // Video replaces all — only one video allowed
-        setMediaItems([{ uri: result.assets[0].uri, type: 'video' }]);
       }
     } catch {
     } finally {
@@ -127,11 +107,7 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
         const newItem: PostMediaItem = { uri: asset.uri, type: asset.type === 'video' ? 'video' : 'image' };
-        if (newItem.type === 'video') {
-          setMediaItems([newItem]);
-        } else {
-          setMediaItems((prev) => [...prev, newItem].slice(0, MAX_MEDIA));
-        }
+        setMediaItems((prev) => [...prev, newItem].slice(0, MAX_MEDIA));
       }
     } catch {
     } finally {
@@ -205,8 +181,7 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
   };
 
   const MEDIA_BTNS = [
-    { key: 'image' as const, icon: 'image', label: 'Photos', onPress: pickImages },
-    { key: 'video' as const, icon: 'video', label: 'Video', onPress: pickVideo },
+    { key: 'media' as const, icon: 'image', label: 'Photos & Video', onPress: pickMedia },
     ...(!isWeb ? [{ key: 'camera' as const, icon: 'camera', label: 'Camera', onPress: pickCamera }] : []),
   ];
 
@@ -329,7 +304,7 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
                   {canAddMore && (
                     <TouchableOpacity
                       style={[styles.thumbAdd, { borderColor: colors.border }]}
-                      onPress={pickImages}
+                      onPress={pickMedia}
                       disabled={pickingMedia}
                     >
                       {pickingMedia ? (
