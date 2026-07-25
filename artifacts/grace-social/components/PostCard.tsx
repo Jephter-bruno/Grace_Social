@@ -405,8 +405,8 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
         </Text>
       </View>
 
-      {/* ── Bible verse (collapsible under caption) ─────────────────────── */}
-      {post.bibleVerse && captionExpanded && (
+      {/* ── Bible verse — always visible when present ───────────────────── */}
+      {post.bibleVerse && (
         <View style={s.verseCard}>
           <Text style={s.verseText}>"{post.bibleVerse.text}"</Text>
           <Text style={s.verseRef}>— {post.bibleVerse.reference}</Text>
