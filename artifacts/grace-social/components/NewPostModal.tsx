@@ -165,6 +165,8 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
           : undefined,
       likes: 0,
       comments: 0,
+      shares: 0,
+      reposts: 0,
       isLiked: false,
       isSaved: false,
       timestamp: 'just now',

@@ -17,9 +17,12 @@ export interface Post {
   bibleVerse?: { reference: string; text: string };
   likes: number;
   comments: number;
+  shares: number;
+  reposts: number;
   isLiked: boolean;
   isSaved: boolean;
   timestamp: string;
+  likedByName?: string;
 }
 
 export interface Comment {
@@ -182,11 +185,14 @@ const INITIAL_POSTS: Post[] = [
     videoUri: REEL_VIDEOS[0],
     caption: "Sunday message highlights: Walking in God's grace. You are loved beyond measure. Don't let the enemy tell you otherwise. Share this with someone who needs it! ❤️",
     bibleVerse: { reference: 'Ephesians 2:8', text: 'For by grace you have been saved through faith.' },
-    likes: 142,
-    comments: 23,
+    likes: 1420,
+    comments: 230,
+    shares: 312,
+    reposts: 148,
     isLiked: false,
     isSaved: false,
     timestamp: '2h ago',
+    likedByName: 'Sarah Williams',
   },
   {
     id: 'p2',
@@ -198,11 +204,14 @@ const INITIAL_POSTS: Post[] = [
     imageIndex: 1,
     caption: "Early morning devotion. God's mercies are new every morning. Starting this day with gratitude in my heart.",
     bibleVerse: { reference: 'Lamentations 3:22-23', text: "The steadfast love of the Lord never ceases; his mercies never come to an end; they are new every morning." },
-    likes: 89,
-    comments: 11,
+    likes: 892,
+    comments: 114,
+    shares: 203,
+    reposts: 89,
     isLiked: true,
     isSaved: true,
     timestamp: '4h ago',
+    likedByName: 'Pastor James',
   },
   {
     id: 'p3',
@@ -214,11 +223,14 @@ const INITIAL_POSTS: Post[] = [
     imageIndex: 2,
     caption: "My devotional time this morning. God's word is a lamp unto my feet. So grateful for this quiet time with Him.",
     bibleVerse: { reference: 'Psalm 119:105', text: 'Your word is a lamp for my feet, a light on my path.' },
-    likes: 56,
-    comments: 8,
+    likes: 562,
+    comments: 84,
+    shares: 97,
+    reposts: 41,
     isLiked: false,
     isSaved: false,
     timestamp: '6h ago',
+    likedByName: 'Grace Ministry',
   },
   {
     id: 'p4',
@@ -231,11 +243,14 @@ const INITIAL_POSTS: Post[] = [
     videoUri: REEL_VIDEOS[1],
     caption: "Testimony Tuesday: How God turned my darkest moment into my greatest testimony. He works all things for good. Share your testimony in the comments! 🙏",
     bibleVerse: { reference: 'Romans 8:28', text: 'And we know that in all things God works for the good of those who love him.' },
-    likes: 204,
-    comments: 31,
+    likes: 2040,
+    comments: 317,
+    shares: 567,
+    reposts: 231,
     isLiked: false,
     isSaved: false,
     timestamp: '8h ago',
+    likedByName: 'Mary K.',
   },
   {
     id: 'p5',
@@ -246,11 +261,14 @@ const INITIAL_POSTS: Post[] = [
     userColor: '#F39C12',
     imageIndex: 0,
     caption: 'Our youth group had an incredible worship night last night. These young hearts on fire for God give us so much hope for the next generation. Blessed!',
-    likes: 315,
-    comments: 47,
+    likes: 3150,
+    comments: 478,
+    shares: 891,
+    reposts: 402,
     isLiked: false,
     isSaved: false,
     timestamp: '1d ago',
+    likedByName: 'David Livingston',
   },
   {
     id: 'p6',
@@ -262,11 +280,14 @@ const INITIAL_POSTS: Post[] = [
     imageIndex: 1,
     caption: "God's creation never ceases to amaze me. This sunrise reminded me of His faithfulness — every single morning, without fail.",
     bibleVerse: { reference: 'Psalm 19:1', text: 'The heavens declare the glory of God; the skies proclaim the work of his hands.' },
-    likes: 78,
-    comments: 14,
+    likes: 781,
+    comments: 142,
+    shares: 204,
+    reposts: 77,
     isLiked: false,
     isSaved: true,
     timestamp: '2d ago',
+    likedByName: 'Sarah Williams',
   },
 ];
 
