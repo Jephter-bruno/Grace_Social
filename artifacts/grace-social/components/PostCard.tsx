@@ -50,7 +50,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
 
   const isOwnPost = post.userId === 'currentUser';
   const isVideo = Boolean(post.videoUri);
-  const hasImage = !isVideo && post.imageIndex !== null && post.imageIndex !== undefined;
+  const hasImage = !isVideo && (post.imageIndex !== null && post.imageIndex !== undefined || !!post.localImageUri);
   const isFollowing = isFollowingUser(post.userHandle);
 
   const [detailVisible, setDetailVisible] = useState(false);
@@ -218,7 +218,11 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
           onPress={() => setDetailVisible(true)}
           style={styles.mediaWrap}
         >
-          <Image source={POST_IMAGES[post.imageIndex!]} style={styles.media} contentFit="cover" />
+          <Image
+            source={post.localImageUri ? { uri: post.localImageUri } : POST_IMAGES[post.imageIndex!]}
+            style={styles.media}
+            contentFit="cover"
+          />
           <View style={styles.expandBadge}>
             <Feather name="maximize-2" size={11} color="#fff" />
           </View>

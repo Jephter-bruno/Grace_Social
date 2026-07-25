@@ -129,7 +129,8 @@ export function PostDetailModal({ visible, post, onClose }: PostDetailModalProps
 
   if (!post) return null;
 
-  const hasImage = post.imageIndex !== null && post.imageIndex !== undefined;
+  const hasImage = (post.imageIndex !== null && post.imageIndex !== undefined) || !!post.localImageUri;
+  const imageSource = post.localImageUri ? { uri: post.localImageUri } : POST_IMAGES[post.imageIndex!];
 
   const ListHeader = (
     <View>
@@ -141,7 +142,7 @@ export function PostDetailModal({ visible, post, onClose }: PostDetailModalProps
           style={styles.imageWrap}
         >
           <Image
-            source={POST_IMAGES[post.imageIndex!]}
+            source={imageSource}
             style={styles.mainImage}
             contentFit="cover"
           />
@@ -215,7 +216,7 @@ export function PostDetailModal({ visible, post, onClose }: PostDetailModalProps
           activeOpacity={0.8}
         >
           <Image
-            source={POST_IMAGES[post.imageIndex!]}
+            source={imageSource}
             style={styles.thumbImage}
             contentFit="cover"
           />
@@ -324,7 +325,8 @@ export function PostDetailModal({ visible, post, onClose }: PostDetailModalProps
       {hasImage && (
         <FullScreenImageViewer
           visible={fullScreen}
-          imageIndex={post.imageIndex!}
+          imageIndex={post.localImageUri ? undefined : post.imageIndex ?? undefined}
+          localImageUri={post.localImageUri}
           onClose={() => setFullScreen(false)}
         />
       )}

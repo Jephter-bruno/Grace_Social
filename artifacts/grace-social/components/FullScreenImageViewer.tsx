@@ -15,14 +15,18 @@ import { POST_IMAGES } from '@/constants/images';
 
 interface FullScreenImageViewerProps {
   visible: boolean;
-  imageIndex: number;
+  imageIndex?: number;
+  localImageUri?: string;
   onClose: () => void;
 }
 
 const { width: W, height: H } = Dimensions.get('window');
 
-export function FullScreenImageViewer({ visible, imageIndex, onClose }: FullScreenImageViewerProps) {
+export function FullScreenImageViewer({ visible, imageIndex, localImageUri, onClose }: FullScreenImageViewerProps) {
   const insets = useSafeAreaInsets();
+  const source = localImageUri
+    ? { uri: localImageUri }
+    : imageIndex !== undefined ? POST_IMAGES[imageIndex] : undefined;
 
   return (
     <Modal
@@ -40,12 +44,14 @@ export function FullScreenImageViewer({ visible, imageIndex, onClose }: FullScre
           onPress={onClose}
         />
 
-        <Image
-          source={POST_IMAGES[imageIndex]}
-          style={styles.image}
-          contentFit="contain"
-          pointerEvents="none"
-        />
+        {source && (
+          <Image
+            source={source}
+            style={styles.image}
+            contentFit="contain"
+            pointerEvents="none"
+          />
+        )}
 
         <TouchableOpacity
           style={[styles.closeBtn, { top: insets.top + 12 }]}
