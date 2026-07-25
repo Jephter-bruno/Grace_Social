@@ -235,6 +235,149 @@ const cm = StyleSheet.create({
   sendBtn: { paddingBottom: 8 },
 });
 
+// ─── All Testimonies Modal ────────────────────────────────────────────────────
+
+function AllTestimoniesModal({
+  visible,
+  testimonyLikes,
+  testimonyComments,
+  onClose,
+  onLike,
+  onRead,
+  onOpenComments,
+}: {
+  visible: boolean;
+  testimonyLikes: Record<string, { liked: boolean; count: number }>;
+  testimonyComments: Record<string, TestimonyComment[]>;
+  onClose: () => void;
+  onLike: (id: string) => void;
+  onRead: (t: Testimony) => void;
+  onOpenComments: (t: Testimony) => void;
+}) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <View style={[al.container, { backgroundColor: colors.background }]}>
+        {/* Header */}
+        <View style={[al.header, { paddingTop: insets.top + 8, borderBottomColor: colors.border }]}>
+          <TouchableOpacity onPress={onClose} style={al.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Feather name="arrow-left" size={22} color={colors.foreground} />
+          </TouchableOpacity>
+          <Text style={[al.title, { color: colors.foreground }]}>All Testimonies</Text>
+          <View style={{ width: 34 }} />
+        </View>
+
+        <FlatList
+          data={SEED_TESTIMONIES}
+          keyExtractor={(t) => t.id}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: insets.bottom + 24 }}
+          renderItem={({ item: t }) => (
+            /* Vertical full-width testimony card */
+            <TouchableOpacity
+              style={[al.card, { backgroundColor: colors.card, borderColor: colors.border }]}
+              activeOpacity={0.95}
+              onPress={() => { onClose(); onRead(t); }}
+            >
+              {/* Image */}
+              <View style={al.imageWrap}>
+                <Image source={{ uri: t.imageUrl }} style={al.image} contentFit="cover" />
+                <View style={[al.catBadge, { backgroundColor: t.categoryColor }]}>
+                  <Text style={al.catText}>{t.category}</Text>
+                </View>
+                <Text style={al.verseWatermark}>{t.bibleVerse}</Text>
+              </View>
+
+              {/* Body */}
+              <View style={al.body}>
+                <View style={al.authorRow}>
+                  <AvatarCircle initials={t.author.initials} color={t.author.color} size={28} />
+                  <Text style={[al.authorName, { color: colors.foreground }]}>{t.author.name}</Text>
+                </View>
+                <Text style={[al.cardTitle, { color: colors.foreground }]}>{t.title}</Text>
+                <Text style={[al.excerpt, { color: colors.mutedForeground }]} numberOfLines={2}>
+                  {t.excerpt}
+                </Text>
+
+                {/* Footer */}
+                <View style={[al.footer, { borderTopColor: colors.border }]}>
+                  <TouchableOpacity style={al.statBtn} onPress={() => onLike(t.id)} activeOpacity={0.7}>
+                    <AntDesign
+                      name={testimonyLikes[t.id]?.liked ? 'heart' : 'hearto'}
+                      size={14}
+                      color={testimonyLikes[t.id]?.liked ? '#FF3B5C' : colors.mutedForeground}
+                    />
+                    <Text style={[al.statNum, { color: testimonyLikes[t.id]?.liked ? '#FF3B5C' : colors.mutedForeground }]}>
+                      {formatNum(testimonyLikes[t.id]?.count ?? t.likes)}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={[al.statBtn, { marginLeft: 14 }]} onPress={() => { onClose(); onOpenComments(t); }} activeOpacity={0.7}>
+                    <Feather name="message-circle" size={14} color={colors.mutedForeground} />
+                    <Text style={[al.statNum, { color: colors.mutedForeground }]}>
+                      {(testimonyComments[t.id] ?? []).length}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <View style={{ flex: 1 }} />
+
+                  <TouchableOpacity style={al.readBtn} onPress={() => { onClose(); onRead(t); }}>
+                    <Text style={[al.readText, { color: CORAL }]}>Read</Text>
+                    <Feather name="chevron-right" size={13} color={CORAL} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
+      </View>
+    </Modal>
+  );
+}
+
+const al = StyleSheet.create({
+  container: { flex: 1 },
+  header: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingBottom: 12,
+    borderBottomWidth: 0.5, gap: 8,
+  },
+  backBtn: { padding: 2 },
+  title: { flex: 1, textAlign: 'center', fontSize: 17, fontFamily: 'Inter_700Bold' },
+
+  card: { borderRadius: 16, borderWidth: 1, overflow: 'hidden' },
+  imageWrap: { height: 200, position: 'relative' },
+  image: { width: '100%', height: '100%' },
+  catBadge: { position: 'absolute', top: 10, left: 10, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20 },
+  catText: { fontSize: 12, fontFamily: 'Inter_700Bold', color: '#fff' },
+  verseWatermark: {
+    position: 'absolute', bottom: 10, right: 12,
+    fontSize: 12, fontFamily: 'Inter_400Regular', fontStyle: 'italic',
+    color: 'rgba(255,255,255,0.88)',
+    textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3,
+  },
+  body: { padding: 14, gap: 6 },
+  authorRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  authorName: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  cardTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', lineHeight: 24 },
+  excerpt: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 19 },
+  footer: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingTop: 10, borderTopWidth: 0.5, marginTop: 4,
+  },
+  statBtn: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  statNum: { fontSize: 13, fontFamily: 'Inter_400Regular' },
+  readBtn: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  readText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+});
+
 // ─── Testimony Read Modal ──────────────────────────────────────────────────────
 
 function TestimonyReadModal({
@@ -649,6 +792,7 @@ export default function CommunityScreen() {
   );
   const [activeCommentTestimony, setActiveCommentTestimony] = useState<Testimony | null>(null);
   const [activeReadTestimony, setActiveReadTestimony] = useState<Testimony | null>(null);
+  const [showAllTestimonies, setShowAllTestimonies] = useState(false);
 
   const toggleTestimonyLike = useCallback((id: string) => {
     setTestimonyLikes((prev) => {
@@ -719,7 +863,7 @@ export default function CommunityScreen() {
                 <Text style={s.sectionEmoji}>🔥</Text>
                 <Text style={[s.sectionTitle, { color: colors.foreground }]}>Featured Testimonies</Text>
                 <View style={{ flex: 1 }} />
-                <TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowAllTestimonies(true)}>
                   <Text style={[s.seeAll, { color: CORAL }]}>See all</Text>
                 </TouchableOpacity>
               </View>
@@ -793,6 +937,17 @@ export default function CommunityScreen() {
             </Text>
           </View>
         }
+      />
+
+      {/* ── All testimonies modal ── */}
+      <AllTestimoniesModal
+        visible={showAllTestimonies}
+        testimonyLikes={testimonyLikes}
+        testimonyComments={testimonyComments}
+        onClose={() => setShowAllTestimonies(false)}
+        onLike={(id) => toggleTestimonyLike(id)}
+        onRead={(t) => { setShowAllTestimonies(false); setActiveReadTestimony(t); }}
+        onOpenComments={(t) => { setShowAllTestimonies(false); setActiveCommentTestimony(t); }}
       />
 
       {/* ── Testimony read modal ── */}
