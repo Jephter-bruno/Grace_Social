@@ -8,6 +8,7 @@ import {
   Modal,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -42,9 +43,11 @@ interface Testimony {
   categoryColor: string;
   imageUrl: string;
   bibleVerse: string;
+  bibleText: string;
   author: { name: string; initials: string; color: string };
   title: string;
   excerpt: string;
+  fullText: string;
   likes: number;
   comments: TestimonyComment[];
 }
@@ -56,9 +59,11 @@ const SEED_TESTIMONIES: Testimony[] = [
     categoryColor: CORAL,
     imageUrl: 'https://picsum.photos/seed/testimony-healing/800/500',
     bibleVerse: 'Jeremiah 30:17',
+    bibleText: '"For I will restore health to you, and your wounds I will heal," declares the Lord.',
     author: { name: 'Sarah Mitchell', initials: 'SM', color: '#E91E8C' },
     title: 'Healed After Five Years',
     excerpt: "The doctors said it was impossible, but God had the final word. Here's how prayer carried us through...",
+    fullText: `Five years. That's how long I lived with a diagnosis the doctors called irreversible.\n\nEvery specialist I visited said the same thing: "You'll need to manage this for the rest of your life." I tried every treatment. I changed my diet. I exercised. I did everything right — and nothing changed.\n\nBut something else was happening in that season. God was drawing me closer. In the waiting rooms and the late nights and the moments of deepest discouragement, I found myself praying in a way I never had before — not asking for a miracle, just asking to know Him.\n\nThen one Sunday morning during worship, something shifted. I can't explain it medically. My doctor certainly couldn't. But at my next appointment, the scans were clear. The condition was gone.\n\nI know healing doesn't always look like this. I know faithful people pray and don't receive the physical miracle. But I believe God can. And I believe He did. And I want my story to be an anchor of hope for anyone still in the waiting — because Jeremiah 30:17 is true: He restores.`,
     likes: 1300,
     comments: [
       { id: 'tc1a', userName: 'Pastor James', userInitials: 'PJ', userColor: '#D4A843', text: 'What a testimony! God is still in the healing business. 🙏', timestamp: '2h ago' },
@@ -72,9 +77,11 @@ const SEED_TESTIMONIES: Testimony[] = [
     categoryColor: '#8B5CF6',
     imageUrl: 'https://picsum.photos/seed/testimony-redemption/800/500',
     bibleVerse: 'Romans 8:28',
+    bibleText: 'And we know that in all things God works for the good of those who love him, who have been called according to his purpose.',
     author: { name: 'Pastor Tim', initials: 'PT', color: '#D4A843' },
     title: 'From Addiction to Purpose',
     excerpt: "I lost everything but God invited me to something greater. My story of radical redemption...",
+    fullText: `I am not proud of who I was at 28. Addiction had taken my marriage, my job, and nearly my life. I had burned every bridge. I was sleeping in my car outside a city I didn't even know.\n\nOne night I walked into a church — not because I believed, but because it was cold and the lights were on. A man handed me a cup of coffee and sat with me without asking a single question. He just sat. For two hours.\n\nThat was the beginning.\n\nRecovery wasn't instant. The road back was longer and harder than anything I'd faced going down. But Romans 8:28 became a lifeline — not a guarantee that things would be easy, but a promise that God could weave even the wreckage into something good.\n\nToday I lead a recovery ministry at our church. I sit with people in their lowest moments — sometimes without saying a word — because someone once did that for me. The very places I fell have become the exact places I now serve.\n\nAll things. Even those things. Especially those things.`,
     likes: 2100,
     comments: [
       { id: 'tc2a', userName: 'Sarah W.', userInitials: 'SW', userColor: '#9B59B6', text: 'This is the power of the gospel. So inspiring!', timestamp: '1h ago' },
@@ -87,9 +94,11 @@ const SEED_TESTIMONIES: Testimony[] = [
     categoryColor: '#27AE60',
     imageUrl: 'https://picsum.photos/seed/testimony-faith/800/500',
     bibleVerse: 'Hebrews 11:1',
+    bibleText: 'Now faith is confidence in what we hope for and assurance about what we do not see.',
     author: { name: 'Grace B.', initials: 'GB', color: '#27AE60' },
     title: 'When God Spoke in the Storm',
     excerpt: "My business failed, my marriage was tested — but faith became my foundation...",
+    fullText: `The year everything collapsed started quietly enough. January: the business deal fell through. March: the investors pulled out. May: the conversations at home grew short and cold.\n\nBy August I was sitting in an empty office wondering how the same faith that felt so solid the year before could feel so far away.\n\nI didn't get a vision. No burning bush. What I got was a verse — Hebrews 11:1 — that my daughter had drawn in crayon and stuck to the fridge. "Faith is being sure of what we hope for." She was six. She had no idea what she had done.\n\nI read it every morning for three months. Not because I felt sure of anything — but because choosing to believe when you can't see is precisely the point of faith.\n\nThe business didn't come back the same way. Our marriage went through honest, painful rebuilding. But on the other side of the storm is a life I wouldn't trade — because every part of it was built on something real, not on circumstances.\n\nFaith is not the absence of storms. It is the foundation that holds when the storms come.`,
     likes: 890,
     comments: [
       { id: 'tc3a', userName: 'Thomas B.', userInitials: 'TB', userColor: '#E74C3C', text: 'Faith is the substance of things hoped for. Beautiful story!', timestamp: '5h ago' },
@@ -226,6 +235,173 @@ const cm = StyleSheet.create({
   sendBtn: { paddingBottom: 8 },
 });
 
+// ─── Testimony Read Modal ──────────────────────────────────────────────────────
+
+function TestimonyReadModal({
+  testimony,
+  liked,
+  likeCount,
+  comments,
+  onClose,
+  onLike,
+  onOpenComments,
+}: {
+  testimony: Testimony | null;
+  liked: boolean;
+  likeCount: number;
+  comments: TestimonyComment[];
+  onClose: () => void;
+  onLike: () => void;
+  onOpenComments: () => void;
+}) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+
+  if (!testimony) return null;
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        title: testimony.title,
+        message: `"${testimony.title}" — ${testimony.author.name}\n\n${testimony.excerpt}\n\nShared from Grace Social`,
+      });
+    } catch (_) {}
+  };
+
+  return (
+    <Modal
+      visible={!!testimony}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <View style={[rd.container, { backgroundColor: colors.background }]}>
+        {/* ── Header ── */}
+        <View style={[rd.header, { paddingTop: insets.top + 8, borderBottomColor: colors.border }]}>
+          <TouchableOpacity onPress={onClose} style={rd.backBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Feather name="arrow-left" size={22} color={colors.foreground} />
+          </TouchableOpacity>
+          <View style={[rd.catBadge, { backgroundColor: testimony.categoryColor }]}>
+            <Text style={rd.catText}>{testimony.category}</Text>
+          </View>
+          <TouchableOpacity onPress={handleShare} style={rd.shareBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Feather name="share-2" size={20} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView
+          style={rd.scroll}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+        >
+          {/* ── Hero image ── */}
+          <View style={rd.imageWrap}>
+            <Image
+              source={{ uri: testimony.imageUrl }}
+              style={rd.image}
+              contentFit="cover"
+            />
+            <View style={rd.imageScrim} />
+            <Text style={rd.verseWatermark}>{testimony.bibleVerse}</Text>
+          </View>
+
+          {/* ── Author + title ── */}
+          <View style={rd.body}>
+            <View style={rd.authorRow}>
+              <AvatarCircle initials={testimony.author.initials} color={testimony.author.color} size={36} />
+              <View style={rd.authorInfo}>
+                <Text style={[rd.authorName, { color: colors.foreground }]}>{testimony.author.name}</Text>
+                <Text style={[rd.authorMeta, { color: colors.mutedForeground }]}>Community member</Text>
+              </View>
+            </View>
+
+            <Text style={[rd.title, { color: colors.foreground }]}>{testimony.title}</Text>
+
+            {/* ── Bible verse callout ── */}
+            <View style={[rd.bibleBox, { backgroundColor: colors.card, borderColor: testimony.categoryColor }]}>
+              <Text style={[rd.bibleRef, { color: testimony.categoryColor }]}>{testimony.bibleVerse}</Text>
+              <Text style={[rd.bibleText, { color: colors.foreground }]}>{testimony.bibleText}</Text>
+            </View>
+
+            {/* ── Full story text ── */}
+            {testimony.fullText.split('\n\n').map((para, i) => (
+              <Text key={i} style={[rd.paragraph, { color: colors.foreground }]}>{para}</Text>
+            ))}
+          </View>
+        </ScrollView>
+
+        {/* ── Action bar (pinned at bottom) ── */}
+        <View style={[rd.actionBar, { backgroundColor: colors.background, borderTopColor: colors.border, paddingBottom: insets.bottom + 8 }]}>
+          <TouchableOpacity style={rd.actionBtn} onPress={onLike} activeOpacity={0.7}>
+            <AntDesign name={liked ? 'heart' : 'hearto'} size={22} color={liked ? '#FF3B5C' : colors.mutedForeground} />
+            <Text style={[rd.actionCount, { color: liked ? '#FF3B5C' : colors.mutedForeground }]}>
+              {formatNum(likeCount)}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={rd.actionBtn} onPress={onOpenComments} activeOpacity={0.7}>
+            <Feather name="message-circle" size={22} color={colors.mutedForeground} />
+            <Text style={[rd.actionCount, { color: colors.mutedForeground }]}>{comments.length}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={rd.actionBtn} onPress={handleShare} activeOpacity={0.7}>
+            <Feather name="share-2" size={22} color={colors.mutedForeground} />
+            <Text style={[rd.actionCount, { color: colors.mutedForeground }]}>Share</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const rd = StyleSheet.create({
+  container: { flex: 1 },
+  header: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 16, paddingBottom: 12,
+    borderBottomWidth: 0.5,
+    gap: 10,
+  },
+  backBtn: { padding: 2 },
+  catBadge: { flex: 1, alignSelf: 'center', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 5, borderRadius: 20, maxWidth: 120 },
+  catText: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#fff' },
+  shareBtn: { padding: 2 },
+
+  scroll: { flex: 1 },
+  imageWrap: { height: 260, position: 'relative' },
+  image: { width: '100%', height: '100%' },
+  imageScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.2)' },
+  verseWatermark: {
+    position: 'absolute', bottom: 14, right: 16,
+    fontSize: 13, fontFamily: 'Inter_400Regular', fontStyle: 'italic',
+    color: 'rgba(255,255,255,0.9)',
+    textShadowColor: 'rgba(0,0,0,0.7)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4,
+  },
+
+  body: { paddingHorizontal: 20, paddingTop: 20, gap: 16 },
+  authorRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  authorInfo: { gap: 2 },
+  authorName: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  authorMeta: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  title: { fontSize: 24, fontFamily: 'Inter_700Bold', lineHeight: 32 },
+
+  bibleBox: {
+    borderRadius: 14, borderWidth: 1, borderLeftWidth: 3,
+    padding: 14, gap: 6,
+  },
+  bibleRef: { fontSize: 12, fontFamily: 'Inter_700Bold', textTransform: 'uppercase', letterSpacing: 0.5 },
+  bibleText: { fontSize: 14, fontFamily: 'Inter_400Regular', lineHeight: 22, fontStyle: 'italic' },
+
+  paragraph: { fontSize: 16, fontFamily: 'Inter_400Regular', lineHeight: 28 },
+
+  actionBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around',
+    paddingTop: 12, borderTopWidth: 0.5,
+  },
+  actionBtn: { alignItems: 'center', gap: 4, paddingHorizontal: 20, paddingVertical: 4 },
+  actionCount: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+});
+
 // ─── Testimony Card ────────────────────────────────────────────────────────────
 
 function TestimonyCard({
@@ -234,6 +410,7 @@ function TestimonyCard({
   likeCount,
   comments,
   onLike,
+  onRead,
   onOpenComments,
 }: {
   item: Testimony;
@@ -241,6 +418,7 @@ function TestimonyCard({
   likeCount: number;
   comments: TestimonyComment[];
   onLike: () => void;
+  onRead: () => void;
   onOpenComments: () => void;
 }) {
   const colors = useColors();
@@ -294,7 +472,7 @@ function TestimonyCard({
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={tc.readBtn} onPress={onOpenComments}>
+        <TouchableOpacity style={tc.readBtn} onPress={onRead}>
           <Text style={[tc.readText, { color: CORAL }]}>Read</Text>
           <Feather name="chevron-right" size={13} color={CORAL} />
         </TouchableOpacity>
@@ -470,6 +648,7 @@ export default function CommunityScreen() {
     () => Object.fromEntries(SEED_TESTIMONIES.map((t) => [t.id, t.comments]))
   );
   const [activeCommentTestimony, setActiveCommentTestimony] = useState<Testimony | null>(null);
+  const [activeReadTestimony, setActiveReadTestimony] = useState<Testimony | null>(null);
 
   const toggleTestimonyLike = useCallback((id: string) => {
     setTestimonyLikes((prev) => {
@@ -558,6 +737,7 @@ export default function CommunityScreen() {
                     likeCount={testimonyLikes[t.id]?.count ?? t.likes}
                     comments={testimonyComments[t.id] ?? []}
                     onLike={() => toggleTestimonyLike(t.id)}
+                    onRead={() => setActiveReadTestimony(t)}
                     onOpenComments={() => setActiveCommentTestimony(t)}
                   />
                 ))}
@@ -613,6 +793,21 @@ export default function CommunityScreen() {
             </Text>
           </View>
         }
+      />
+
+      {/* ── Testimony read modal ── */}
+      <TestimonyReadModal
+        testimony={activeReadTestimony}
+        liked={testimonyLikes[activeReadTestimony?.id ?? '']?.liked ?? false}
+        likeCount={testimonyLikes[activeReadTestimony?.id ?? '']?.count ?? 0}
+        comments={testimonyComments[activeReadTestimony?.id ?? ''] ?? []}
+        onClose={() => setActiveReadTestimony(null)}
+        onLike={() => activeReadTestimony && toggleTestimonyLike(activeReadTestimony.id)}
+        onOpenComments={() => {
+          if (!activeReadTestimony) return;
+          setActiveCommentTestimony(activeReadTestimony);
+          setActiveReadTestimony(null);
+        }}
       />
 
       {/* ── Testimony comment sheet ── */}
