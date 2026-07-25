@@ -29,9 +29,11 @@ interface Props {
   visible: boolean;
   onClose: () => void;
   initialVerse?: { reference: string; text: string } | null;
+  /** If provided, called instead of the global addPost — useful for scoped feeds (e.g. community) */
+  onPost?: (post: Omit<import('@/context/AppContext').Post, 'id'>) => void;
 }
 
-export function NewPostModal({ visible, onClose, initialVerse }: Props) {
+export function NewPostModal({ visible, onClose, initialVerse, onPost }: Props) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { addPost } = useApp();
@@ -129,7 +131,7 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
     const singleImage = mediaItems.length === 1 && mediaItems[0].type === 'image' ? mediaItems[0].uri : undefined;
     const singleVideo = mediaItems.length === 1 && mediaItems[0].type === 'video' ? mediaItems[0].uri : undefined;
 
-    addPost({
+    const newPost = {
       userId: 'currentUser',
       userName: currentUser?.displayName || currentUser?.name || 'You',
       userHandle: currentUser?.handle || '@gracemember',
@@ -151,7 +153,13 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
       isLiked: false,
       isSaved: false,
       timestamp: 'just now',
-    });
+    } as const;
+
+    if (onPost) {
+      onPost(newPost);
+    } else {
+      addPost(newPost);
+    }
 
     setSubmitted(true);
     setTimeout(() => {
