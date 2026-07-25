@@ -167,6 +167,7 @@ interface AppContextType {
   toggleReelLike: (reelId: string) => void;
   toggleReelSave: (reelId: string) => void;
   incrementReelShares: (reelId: string) => void;
+  incrementPostShares: (postId: string) => void;
   addPrayer: (prayer: Omit<Prayer, 'id'>) => void;
   addPost: (post: Omit<Post, 'id'>) => void;
   addReel: (reel: Omit<Reel, 'id'>) => void;
@@ -442,6 +443,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setReels((prev) => prev.map((r) => r.id === reelId ? { ...r, shares: r.shares + 1 } : r));
   }, []);
 
+  const incrementPostShares = useCallback((postId: string) => {
+    setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, shares: p.shares + 1 } : p));
+  }, []);
+
   // Per-user follow state keyed by userHandle — seed with handles already followed in initial reels
   const [followedHandles, setFollowedHandles] = useState<Record<string, boolean>>({
     '@pastorjames': true,
@@ -566,7 +571,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const followingCount = Object.values(followedHandles).filter(Boolean).length;
 
   return (
-    <AppContext.Provider value={{ posts, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, toggleReelSave, incrementReelShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead }}>
+    <AppContext.Provider value={{ posts, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, toggleReelLike, toggleReelSave, incrementReelShares, incrementPostShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead }}>
       {children}
     </AppContext.Provider>
   );

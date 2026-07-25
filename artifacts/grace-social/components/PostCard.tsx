@@ -7,7 +7,6 @@ import {
   Animated as RNAnimated,
   Modal,
   Platform,
-  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -28,6 +27,7 @@ import { AvatarCircle } from '@/components/AvatarCircle';
 import { CommentsModal } from '@/components/CommentsModal';
 import { MediaCarousel } from '@/components/MediaCarousel';
 import { PostDetailModal } from '@/components/PostDetailModal';
+import { SharePostModal } from '@/components/SharePostModal';
 import { VideoPlayer } from '@/components/VideoPlayer';
 import { POST_IMAGES } from '@/constants/images';
 import { Post, useApp } from '@/context/AppContext';
@@ -94,7 +94,7 @@ const sb = StyleSheet.create({
 export function PostCard({ post, isActive = false }: PostCardProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { toggleLike, toggleSave, toggleFollow, isFollowingUser } = useApp();
+  const { toggleLike, toggleSave, toggleFollow, isFollowingUser, incrementPostShares } = useApp();
 
   const isOwnPost = post.userId === 'currentUser';
   // Multi-media carousel takes precedence over legacy single-media fields
@@ -112,6 +112,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
   const [isMuted, setIsMuted] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
   const [moreVisible, setMoreVisible] = useState(false);
+  const [shareVisible, setShareVisible] = useState(false);
   const [captionExpanded, setCaptionExpanded] = useState(false);
 
   // Animated values
@@ -350,7 +351,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
           <StatBtn
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-              Share.share({ message: `"${post.caption}" — shared from Grace Social` });
+              setShareVisible(true);
             }}
             count={formatCount(post.shares)}
             icon={<Feather name="send" size={20} color="#fff" />}
@@ -422,6 +423,14 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
         <CommentsModal visible={detailVisible} entityId={post.id} entityType="post" onClose={() => setDetailVisible(false)} />
       )}
 
+      {/* ── Share modal ────────────────────────────────────────────────── */}
+      <SharePostModal
+        visible={shareVisible}
+        post={post}
+        onClose={() => setShareVisible(false)}
+        onShareCountIncrement={() => incrementPostShares(post.id)}
+      />
+
       {/* ── More options sheet ──────────────────────────────────────────── */}
       <Modal transparent visible={moreVisible} animationType="fade" onRequestClose={() => closeMore()}>
         <TouchableOpacity style={s.sheetOverlay} activeOpacity={1} onPress={() => closeMore()}>
@@ -438,7 +447,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
             {[
               { icon: 'eye-off', label: 'Not Interested', action: () => closeMore() },
               { icon: 'copy', label: 'Copy Link', action: () => closeMore() },
-              { icon: 'share-2', label: 'Share Post', action: () => closeMore(() => Share.share({ message: `"${post.caption}" — shared from Grace Social` })) },
+              { icon: 'share-2', label: 'Share Post', action: () => closeMore(() => setShareVisible(true)) },
               ...(!isOwnPost ? [{ icon: isFollowing ? 'user-minus' : 'user-plus', label: isFollowing ? `Unfollow ${post.userHandle}` : `Follow ${post.userHandle}`, action: () => closeMore(handleFollow) }] : []),
               { icon: 'flag', label: 'Report Post', action: () => closeMore(), danger: true },
             ].map((opt) => (
