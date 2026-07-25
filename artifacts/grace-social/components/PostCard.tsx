@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AvatarCircle } from '@/components/AvatarCircle';
 import { CommentsModal } from '@/components/CommentsModal';
+import { MediaCarousel } from '@/components/MediaCarousel';
 import { PostDetailModal } from '@/components/PostDetailModal';
 import { VideoPlayer } from '@/components/VideoPlayer';
 import { POST_IMAGES } from '@/constants/images';
@@ -96,8 +97,10 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
   const { toggleLike, toggleSave, toggleFollow, isFollowingUser } = useApp();
 
   const isOwnPost = post.userId === 'currentUser';
-  const isVideo = Boolean(post.videoUri);
-  const hasImage = !isVideo && ((post.imageIndex !== null && post.imageIndex !== undefined) || !!post.localImageUri);
+  // Multi-media carousel takes precedence over legacy single-media fields
+  const hasCarousel = Array.isArray(post.mediaItems) && post.mediaItems.length >= 2;
+  const isVideo = !hasCarousel && Boolean(post.videoUri);
+  const hasImage = !hasCarousel && !isVideo && ((post.imageIndex !== null && post.imageIndex !== undefined) || !!post.localImageUri);
   const imageSource = post.localImageUri
     ? { uri: post.localImageUri }
     : post.imageIndex !== null && post.imageIndex !== undefined
@@ -245,7 +248,15 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
       </View>
 
       {/* ── Media ─────────────────────────────────────────────────────── */}
-      {hasImage && imageSource && (
+      {hasCarousel && post.mediaItems && (
+        <MediaCarousel
+          items={post.mediaItems}
+          isActive={isActive}
+          onDoubleTap={triggerLike}
+        />
+      )}
+
+      {!hasCarousel && hasImage && imageSource && (
         <TouchableOpacity
           activeOpacity={0.97}
           onPress={() => setDetailVisible(true)}

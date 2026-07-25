@@ -3,6 +3,11 @@ import { REEL_VIDEOS, POST_VIDEOS } from '@/constants/videos';
 
 export type PrayerCategory = 'health' | 'family' | 'work' | 'faith' | 'gratitude';
 
+export interface PostMediaItem {
+  uri: string;
+  type: 'image' | 'video';
+}
+
 export interface Post {
   id: string;
   userId: string;
@@ -13,6 +18,8 @@ export interface Post {
   imageIndex: number | null;
   localImageUri?: string;
   videoUri?: string;
+  /** Multi-media carousel items (2+ items = carousel; 1 item = single; absent = legacy single-field) */
+  mediaItems?: PostMediaItem[];
   caption: string;
   bibleVerse?: { reference: string; text: string };
   likes: number;

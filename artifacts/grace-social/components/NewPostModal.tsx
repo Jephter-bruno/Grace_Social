@@ -19,10 +19,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AvatarCircle } from '@/components/AvatarCircle';
 import { VersePickerModal } from '@/components/VersePickerModal';
-import { VideoPlayer } from '@/components/VideoPlayer';
-import { useApp } from '@/context/AppContext';
+import { PostMediaItem, useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+
+const MAX_MEDIA = 10;
 
 interface Props {
   visible: boolean;
@@ -41,8 +42,7 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
   const [verseEnabled, setVerseEnabled] = useState(false);
   const [verseRef, setVerseRef] = useState('');
   const [verseText, setVerseText] = useState('');
-  const [mediaUri, setMediaUri] = useState<string | null>(null);
-  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
+  const [mediaItems, setMediaItems] = useState<PostMediaItem[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const [pickingMedia, setPickingMedia] = useState(false);
   const [versePickerVisible, setVersePickerVisible] = useState(false);
@@ -59,26 +59,27 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
 
   const canShare = caption.trim().length > 0;
 
-  const pickImage = async () => {
+  const hasVideo = mediaItems.some((m) => m.type === 'video');
+  const canAddMore = mediaItems.length < MAX_MEDIA && !hasVideo;
+
+  const pickImages = async () => {
     Haptics.selectionAsync();
     setPickingMedia(true);
     try {
       if (!isWeb) {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (perm.status !== 'granted') {
-          setPickingMedia(false);
-          return;
-        }
+        if (perm.status !== 'granted') return;
       }
+      const remaining = MAX_MEDIA - mediaItems.length;
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
+        allowsMultipleSelection: true,
+        selectionLimit: remaining,
         quality: 0.85,
-        aspect: [4, 3],
       });
-      if (!result.canceled && result.assets[0]) {
-        setMediaUri(result.assets[0].uri);
-        setMediaType('image');
+      if (!result.canceled) {
+        const newItems: PostMediaItem[] = result.assets.map((a) => ({ uri: a.uri, type: 'image' }));
+        setMediaItems((prev) => [...prev, ...newItems].slice(0, MAX_MEDIA));
       }
     } catch {
     } finally {
@@ -92,10 +93,7 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
     try {
       if (!isWeb) {
         const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (perm.status !== 'granted') {
-          setPickingMedia(false);
-          return;
-        }
+        if (perm.status !== 'granted') return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['videos'],
@@ -104,8 +102,8 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
         quality: 0.8,
       });
       if (!result.canceled && result.assets[0]) {
-        setMediaUri(result.assets[0].uri);
-        setMediaType('video');
+        // Video replaces all — only one video allowed
+        setMediaItems([{ uri: result.assets[0].uri, type: 'video' }]);
       }
     } catch {
     } finally {
@@ -119,10 +117,7 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
     try {
       if (!isWeb) {
         const perm = await ImagePicker.requestCameraPermissionsAsync();
-        if (perm.status !== 'granted') {
-          setPickingMedia(false);
-          return;
-        }
+        if (perm.status !== 'granted') return;
       }
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images', 'videos'],
@@ -131,8 +126,12 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
       });
       if (!result.canceled && result.assets[0]) {
         const asset = result.assets[0];
-        setMediaUri(asset.uri);
-        setMediaType(asset.type === 'video' ? 'video' : 'image');
+        const newItem: PostMediaItem = { uri: asset.uri, type: asset.type === 'video' ? 'video' : 'image' };
+        if (newItem.type === 'video') {
+          setMediaItems([newItem]);
+        } else {
+          setMediaItems((prev) => [...prev, newItem].slice(0, MAX_MEDIA));
+        }
       }
     } catch {
     } finally {
@@ -140,14 +139,19 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
     }
   };
 
-  const clearMedia = () => {
-    setMediaUri(null);
-    setMediaType(null);
+  const removeMediaAt = (index: number) => {
+    setMediaItems((prev) => prev.filter((_, i) => i !== index));
   };
+
+  const clearAllMedia = () => setMediaItems([]);
 
   const handleShare = () => {
     if (!canShare) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Build media fields — multi-item carousel OR single legacy fields for backward compat
+    const singleImage = mediaItems.length === 1 && mediaItems[0].type === 'image' ? mediaItems[0].uri : undefined;
+    const singleVideo = mediaItems.length === 1 && mediaItems[0].type === 'video' ? mediaItems[0].uri : undefined;
 
     addPost({
       userId: 'currentUser',
@@ -156,8 +160,9 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
       userInitials: currentUser?.initials || 'ME',
       userColor: currentUser?.color || '#4A90A4',
       imageIndex: null,
-      localImageUri: mediaType === 'image' ? (mediaUri ?? undefined) : undefined,
-      videoUri: mediaType === 'video' ? (mediaUri ?? undefined) : undefined,
+      localImageUri: singleImage,
+      videoUri: singleVideo,
+      mediaItems: mediaItems.length >= 2 ? mediaItems : undefined,
       caption: caption.trim(),
       bibleVerse:
         verseEnabled && verseRef.trim() && verseText.trim()
@@ -184,8 +189,7 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
     setVerseEnabled(false);
     setVerseRef('');
     setVerseText('');
-    setMediaUri(null);
-    setMediaType(null);
+    setMediaItems([]);
     setSubmitted(false);
     setPickingMedia(false);
   };
@@ -201,7 +205,7 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
   };
 
   const MEDIA_BTNS = [
-    { key: 'image' as const, icon: 'image', label: 'Photo', onPress: pickImage },
+    { key: 'image' as const, icon: 'image', label: 'Photos', onPress: pickImages },
     { key: 'video' as const, icon: 'video', label: 'Video', onPress: pickVideo },
     ...(!isWeb ? [{ key: 'camera' as const, icon: 'camera', label: 'Camera', onPress: pickCamera }] : []),
   ];
@@ -287,20 +291,70 @@ export function NewPostModal({ visible, onClose, initialVerse }: Props) {
               autoFocus
             />
 
-            {/* Media preview */}
-            {mediaUri ? (
-              <View style={styles.previewWrap}>
-                {mediaType === 'image' ? (
-                  <Image source={{ uri: mediaUri }} style={styles.mediaPreview} contentFit="cover" />
-                ) : (
-                  <VideoPlayer uri={mediaUri} isActive muted style={styles.mediaPreview} />
-                )}
-                <TouchableOpacity style={styles.removeBtn} onPress={clearMedia}>
-                  <Feather name="x" size={16} color="#fff" />
-                </TouchableOpacity>
-                <View style={styles.mediaBadge}>
-                  <Feather name={mediaType === 'video' ? 'video' : 'image'} size={11} color="#fff" />
-                  <Text style={styles.mediaBadgeText}>{mediaType === 'video' ? 'Video' : 'Photo'}</Text>
+            {/* Media preview — thumbnail strip */}
+            {mediaItems.length > 0 ? (
+              <View style={styles.previewSection}>
+                {/* Thumbnail row */}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.thumbScroll}
+                  contentContainerStyle={styles.thumbContent}
+                >
+                  {mediaItems.map((item, i) => (
+                    <View key={i} style={styles.thumbWrap}>
+                      {item.type === 'image' ? (
+                        <Image source={{ uri: item.uri }} style={styles.thumb} contentFit="cover" />
+                      ) : (
+                        <View style={[styles.thumb, styles.thumbVideo]}>
+                          <Feather name="video" size={24} color="#fff" />
+                        </View>
+                      )}
+                      {/* Remove button */}
+                      <TouchableOpacity
+                        style={styles.thumbRemove}
+                        onPress={() => removeMediaAt(i)}
+                        hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                      >
+                        <Feather name="x" size={12} color="#fff" />
+                      </TouchableOpacity>
+                      {/* Index badge */}
+                      <View style={styles.thumbBadge}>
+                        <Text style={styles.thumbBadgeText}>{i + 1}</Text>
+                      </View>
+                    </View>
+                  ))}
+
+                  {/* Add more button */}
+                  {canAddMore && (
+                    <TouchableOpacity
+                      style={[styles.thumbAdd, { borderColor: colors.border }]}
+                      onPress={pickImages}
+                      disabled={pickingMedia}
+                    >
+                      {pickingMedia ? (
+                        <ActivityIndicator size="small" color={colors.primary} />
+                      ) : (
+                        <>
+                          <Feather name="plus" size={22} color={colors.primary} />
+                          <Text style={[styles.thumbAddLabel, { color: colors.mutedForeground }]}>
+                            Add more
+                          </Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  )}
+                </ScrollView>
+
+                {/* Count + clear all */}
+                <View style={styles.previewMeta}>
+                  <Text style={[styles.previewCount, { color: colors.mutedForeground }]}>
+                    {mediaItems.length} {mediaItems.length === 1 ? 'item' : 'items'} selected
+                    {mediaItems.length >= MAX_MEDIA ? ' (max)' : ''}
+                  </Text>
+                  <TouchableOpacity onPress={clearAllMedia}>
+                    <Text style={[styles.clearAll, { color: colors.primary }]}>Clear all</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             ) : (
@@ -451,40 +505,63 @@ const styles = StyleSheet.create({
     minHeight: 80,
     marginBottom: 16,
   },
-  previewWrap: {
-    width: '100%',
-    height: 220,
-    borderRadius: 14,
+  previewSection: { marginBottom: 16 },
+  thumbScroll: { flexGrow: 0 },
+  thumbContent: { gap: 10, paddingVertical: 4 },
+  thumbWrap: {
+    width: 90,
+    height: 90,
+    borderRadius: 10,
     overflow: 'hidden',
-    marginBottom: 16,
     position: 'relative',
+    backgroundColor: '#111',
   },
-  mediaPreview: { width: '100%', height: '100%' },
-  removeBtn: {
+  thumb: { width: '100%', height: '100%' },
+  thumbVideo: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#222' },
+  thumbRemove: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    top: 5,
+    right: 5,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.7)',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
   },
-  mediaBadge: {
+  thumbBadge: {
     position: 'absolute',
-    bottom: 10,
-    left: 10,
+    bottom: 5,
+    left: 5,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  thumbBadgeText: { color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold' },
+  thumbAdd: {
+    width: 90,
+    height: 90,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  thumbAddLabel: { fontSize: 10, fontFamily: 'Inter_500Medium', textAlign: 'center' },
+  previewMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    justifyContent: 'space-between',
+    marginTop: 8,
   },
-  mediaBadgeText: { color: '#fff', fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  previewCount: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  clearAll: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
   mediaPicker: {
     flexDirection: 'row',
     gap: 10,
