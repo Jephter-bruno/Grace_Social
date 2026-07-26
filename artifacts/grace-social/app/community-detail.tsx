@@ -16,7 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AvatarCircle } from '@/components/AvatarCircle';
 import { NewPostModal } from '@/components/NewPostModal';
 import { PostCard } from '@/components/PostCard';
-import { Post, PostMediaItem, useApp } from '@/context/AppContext';
+import { PendingMember, Post, PostMediaItem, useApp } from '@/context/AppContext';
 import { POST_VIDEOS } from '@/constants/videos';
 import { useColors } from '@/hooks/useColors';
 
@@ -155,14 +155,15 @@ const SEED_MEMBERS: CommunityMember[] = [
 type ListItem =
   | { type: 'post'; data: Post }
   | { type: 'member'; data: CommunityMember }
+  | { type: 'pendingMember'; data: PendingMember }
   | { type: 'about' };
 
-type Tab = 'feed' | 'members' | 'about';
+type Tab = 'feed' | 'members' | 'about' | 'requests';
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function CommunityDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { communities, toggleJoin, requestJoin, startOrOpenConversation } = useApp();
+  const { communities, toggleJoin, requestJoin, startOrOpenConversation, approveJoinRequest, declineJoinRequest } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
@@ -239,20 +240,25 @@ export default function CommunityDetailScreen() {
     setCommunityPosts((prev) => [newPost, ...prev]);
   }, []);
 
+  const pendingMembers = community?.pendingMembers ?? [];
+  const pendingCount = pendingMembers.length;
+
   // ── List data ─────────────────────────────────────────────────────────────
   const listData = useMemo<ListItem[]>(() => {
     if (isLocked || activeTab !== 'feed') {
-      // Non-feed tabs / gated: use member rows or about item
       if (activeTab === 'members' && !isLocked) {
         return SEED_MEMBERS.map((m) => ({ type: 'member', data: m }));
       }
       if (activeTab === 'about') {
         return [{ type: 'about' }];
       }
+      if (activeTab === 'requests') {
+        return pendingMembers.map((m) => ({ type: 'pendingMember', data: m }));
+      }
       return [];
     }
     return communityPosts.map((p) => ({ type: 'post', data: p }));
-  }, [activeTab, isLocked, communityPosts]);
+  }, [activeTab, isLocked, communityPosts, pendingMembers]);
 
   // ── Shared Hero + Tabs rendered as FlatList header ────────────────────────
   const ListHeader = useCallback(() => (
@@ -341,6 +347,24 @@ export default function CommunityDetailScreen() {
             </Text>
           </TouchableOpacity>
         ))}
+        {/* Requests tab — only visible to admins of private communities */}
+        {community.isAdmin && community.isPrivate && (
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'requests' && { borderBottomColor: community.color, borderBottomWidth: 2.5 }]}
+            onPress={() => setActiveTab('requests')}
+          >
+            <View style={styles.tabLabelRow}>
+              <Text style={[styles.tabText, { color: activeTab === 'requests' ? community.color : colors.mutedForeground }]}>
+                Requests
+              </Text>
+              {pendingCount > 0 && (
+                <View style={[styles.tabBadge, { backgroundColor: '#EF4444' }]}>
+                  <Text style={styles.tabBadgeText}>{pendingCount}</Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Private gate */}
@@ -381,6 +405,16 @@ export default function CommunityDetailScreen() {
         <Text style={[styles.sectionLabel, { color: colors.mutedForeground, paddingHorizontal: 16, paddingTop: 16 }]}>
           {community.members.toLocaleString()} MEMBERS
         </Text>
+      )}
+
+      {/* Requests section label */}
+      {activeTab === 'requests' && (
+        <View style={styles.requestsHeader}>
+          <Feather name="users" size={15} color={colors.mutedForeground} />
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+            {pendingCount === 0 ? 'NO PENDING REQUESTS' : `${pendingCount} PENDING REQUEST${pendingCount !== 1 ? 'S' : ''}`}
+          </Text>
+        </View>
       )}
     </>
   ), [activeTab, isLocked, community, colors, communityPosts.length, handleJoin, handleLeave, joinBg, joinFg, joinIcon, joinLabel]);
@@ -451,15 +485,48 @@ export default function CommunityDetailScreen() {
           </View>
         );
       }
+      if (item.type === 'pendingMember') {
+        const pm = item.data;
+        return (
+          <View style={[styles.pendingRow, { borderBottomColor: colors.border }]}>
+            <AvatarCircle initials={pm.initials} color={pm.color} size={46} />
+            <View style={styles.pendingInfo}>
+              <Text style={[styles.memberName, { color: colors.foreground }]}>{pm.name}</Text>
+              <Text style={[styles.pendingTime, { color: colors.mutedForeground }]}>Requested {pm.requestedAt}</Text>
+            </View>
+            <View style={styles.pendingActions}>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: '#22C55E' }]}
+                onPress={() => {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  approveJoinRequest(community.id, pm.id);
+                }}
+              >
+                <Feather name="check" size={16} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: colors.muted, borderWidth: 1, borderColor: colors.border }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  declineJoinRequest(community.id, pm.id);
+                }}
+              >
+                <Feather name="x" size={16} color={colors.mutedForeground} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+      }
       // about
       return renderAbout();
     },
-    [activePostId, colors, community]
+    [activePostId, colors, community, approveJoinRequest, declineJoinRequest]
   );
 
   const keyExtractor = useCallback((item: ListItem, idx: number) => {
     if (item.type === 'post') return item.data.id;
     if (item.type === 'member') return item.data.id;
+    if (item.type === 'pendingMember') return `pending-${item.data.id}`;
     return `about-${idx}`;
   }, []);
 
@@ -471,8 +538,21 @@ export default function CommunityDetailScreen() {
         </Text>
       );
     }
+    if (activeTab === 'requests' && pendingCount === 0) {
+      return (
+        <View style={styles.emptyRequests}>
+          <View style={[styles.emptyRequestsIcon, { backgroundColor: colors.muted }]}>
+            <Feather name="check-circle" size={28} color={colors.mutedForeground} />
+          </View>
+          <Text style={[styles.emptyRequestsTitle, { color: colors.foreground }]}>All caught up!</Text>
+          <Text style={[styles.emptyRequestsDesc, { color: colors.mutedForeground }]}>
+            No pending join requests right now.
+          </Text>
+        </View>
+      );
+    }
     return <View style={{ height: isWeb ? 90 : insets.bottom + 88 }} />;
-  }, [activeTab, isLocked, colors, community.members, isWeb, insets.bottom]);
+  }, [activeTab, isLocked, colors, community.members, isWeb, insets.bottom, pendingCount]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -596,6 +676,25 @@ const styles = StyleSheet.create({
 
   // FAB
   fab: { position: 'absolute', right: 20, width: 52, height: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.18, shadowRadius: 8, elevation: 6 },
+
+  // Requests tab badge
+  tabLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  tabBadge: { minWidth: 18, height: 18, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  tabBadgeText: { color: '#fff', fontSize: 11, fontFamily: 'Inter_700Bold' },
+
+  // Pending join requests
+  requestsHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
+  pendingRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 0.5 },
+  pendingInfo: { flex: 1 },
+  pendingTime: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 2 },
+  pendingActions: { flexDirection: 'row', gap: 8 },
+  actionBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+
+  // Empty requests state
+  emptyRequests: { alignItems: 'center', paddingVertical: 48, paddingHorizontal: 32, gap: 12 },
+  emptyRequestsIcon: { width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+  emptyRequestsTitle: { fontSize: 17, fontFamily: 'Inter_700Bold' },
+  emptyRequestsDesc: { fontSize: 14, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 20 },
 
   // Unused — kept for compat
   backBtn: { padding: 4 },

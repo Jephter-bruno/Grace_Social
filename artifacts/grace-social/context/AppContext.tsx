@@ -80,6 +80,14 @@ export interface Reel {
   audioName: string;
 }
 
+export interface PendingMember {
+  id: string;
+  name: string;
+  initials: string;
+  color: string;
+  requestedAt: string;
+}
+
 export interface Community {
   id: string;
   name: string;
@@ -92,6 +100,10 @@ export interface Community {
   isPrivate?: boolean;
   joinRequested?: boolean;
   imageUrl?: string;
+  /** True when the current user is an admin/owner of this community */
+  isAdmin?: boolean;
+  /** Pending join requests waiting for admin approval */
+  pendingMembers?: PendingMember[];
 }
 
 export type NotificationType =
@@ -196,6 +208,8 @@ interface AppContextType {
   toggleFollow: (handle: string) => void;
   toggleJoin: (communityId: string) => void;
   requestJoin: (communityId: string) => void;
+  approveJoinRequest: (communityId: string, memberId: string) => void;
+  declineJoinRequest: (communityId: string, memberId: string) => void;
   toggleReelLike: (reelId: string) => void;
   toggleReelSave: (reelId: string) => void;
   incrementReelShares: (reelId: string) => void;
@@ -491,9 +505,9 @@ const INITIAL_REELS: Reel[] = [
 
 const INITIAL_COMMUNITIES: Community[] = [
   { id: 'c1', name: 'Morning Bible Study', description: 'Daily morning devotionals and scripture study for all levels. Start your day in the Word.', members: 89, category: 'Bible Study', iconName: 'book-open', color: '#27AE60', isJoined: false, isPrivate: false, imageUrl: 'https://picsum.photos/seed/gc-bible2/600/400' },
-  { id: 'c2', name: 'Worship & Music', description: 'Musicians, singers, and worship leaders who serve through music ministry each week.', members: 134, category: 'Worship', iconName: 'music', color: '#9B59B6', isJoined: false, isPrivate: true, imageUrl: 'https://picsum.photos/seed/gc-worship2/600/400' },
+  { id: 'c2', name: 'Worship & Music', description: 'Musicians, singers, and worship leaders who serve through music ministry each week.', members: 134, category: 'Worship', iconName: 'music', color: '#9B59B6', isJoined: true, isPrivate: true, isAdmin: true, imageUrl: 'https://picsum.photos/seed/gc-worship2/600/400', pendingMembers: [{ id: 'pm1', name: 'Grace Okonkwo', initials: 'GO', color: '#FF6B35', requestedAt: '2h ago' }, { id: 'pm2', name: 'Levi Mensah', initials: 'LM', color: '#3A8DFF', requestedAt: '5h ago' }, { id: 'pm3', name: 'Priscilla A.', initials: 'PA', color: '#EC4899', requestedAt: '1d ago' }] },
   { id: 'c3', name: 'Youth Group', description: 'A community for young believers aged 13–25 to grow in faith together with purpose.', members: 247, category: 'Youth', iconName: 'zap', color: '#FF6B35', isJoined: true, isPrivate: false, imageUrl: 'https://picsum.photos/seed/gc-youth2/600/400' },
-  { id: 'c4', name: "Women's Fellowship", description: 'A safe, uplifting space for women to connect, pray, and encourage one another in Christ.', members: 186, category: 'Fellowship', iconName: 'heart', color: '#E91E8C', isJoined: false, isPrivate: true, imageUrl: 'https://picsum.photos/seed/gc-women2/600/400' },
+  { id: 'c4', name: "Women's Fellowship", description: 'A safe, uplifting space for women to connect, pray, and encourage one another in Christ.', members: 186, category: 'Fellowship', iconName: 'heart', color: '#E91E8C', isJoined: true, isPrivate: true, isAdmin: true, imageUrl: 'https://picsum.photos/seed/gc-women2/600/400', pendingMembers: [{ id: 'pm4', name: 'Abigail Thompson', initials: 'AT', color: '#8B5CF6', requestedAt: '3h ago' }, { id: 'pm5', name: 'Naomi Williams', initials: 'NW', color: '#10B981', requestedAt: '1d ago' }] },
   { id: 'c5', name: "Men's Brotherhood", description: 'Men doing life together — accountability, real faith, and brotherly love that goes deep.', members: 143, category: 'Brotherhood', iconName: 'shield', color: '#2980B9', isJoined: false, isPrivate: true, imageUrl: 'https://picsum.photos/seed/gc-men2/600/400' },
   { id: 'c6', name: 'Prayer Warriors', description: 'Dedicated intercessors committed to praying for the church, the community, and the world.', members: 312, category: 'Prayer', iconName: 'sun', color: '#F39C12', isJoined: true, isPrivate: false, imageUrl: 'https://picsum.photos/seed/gc-prayer2/600/400' },
 ];
@@ -585,6 +599,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const requestJoin = useCallback((communityId: string) => {
     setCommunities((prev) => prev.map((c) => c.id === communityId ? { ...c, joinRequested: !c.joinRequested } : c));
+  }, []);
+
+  const approveJoinRequest = useCallback((communityId: string, memberId: string) => {
+    setCommunities((prev) => prev.map((c) =>
+      c.id === communityId
+        ? { ...c, members: c.members + 1, pendingMembers: (c.pendingMembers ?? []).filter((m) => m.id !== memberId) }
+        : c
+    ));
+  }, []);
+
+  const declineJoinRequest = useCallback((communityId: string, memberId: string) => {
+    setCommunities((prev) => prev.map((c) =>
+      c.id === communityId
+        ? { ...c, pendingMembers: (c.pendingMembers ?? []).filter((m) => m.id !== memberId) }
+        : c
+    ));
   }, []);
 
   const addPrayer = useCallback((prayer: Omit<Prayer, 'id'>) => {
@@ -721,7 +751,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <AppContext.Provider value={{ posts, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, requestJoin, toggleReelLike, toggleReelSave, incrementReelShares, incrementPostShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, conversations, startOrOpenConversation, markConversationRead, addConversation }}>
+    <AppContext.Provider value={{ posts, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, requestJoin, approveJoinRequest, declineJoinRequest, toggleReelLike, toggleReelSave, incrementReelShares, incrementPostShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, conversations, startOrOpenConversation, markConversationRead, addConversation }}>
       {children}
     </AppContext.Provider>
   );
