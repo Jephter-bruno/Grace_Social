@@ -31,6 +31,7 @@ import { SharePostModal } from '@/components/SharePostModal';
 import { VideoPlayer } from '@/components/VideoPlayer';
 import { POST_IMAGES } from '@/constants/images';
 import { Post, useApp } from '@/context/AppContext';
+import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 
 interface PostCardProps {
@@ -94,25 +95,31 @@ const sb = StyleSheet.create({
 export function PostCard({ post, isActive = false }: PostCardProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { toggleLike, toggleSave, toggleFollow, isFollowingUser, incrementPostShares } = useApp();
+  const { toggleLike, toggleSave, toggleFollow, isFollowingUser, incrementPostShares, resharePost } = useApp();
+  const { currentUser } = useAuth();
 
-  const isOwnPost = post.userId === 'currentUser';
+  // For repost cards, all content and interactions target the original post
+  const effectivePost: Post = (post.isRepost && post.originalPost) ? (post.originalPost as Post) : post;
+  const isRepostCard = post.isRepost && !!post.originalPost;
+
+  const isOwnPost = effectivePost.userId === 'currentUser';
   // Multi-media carousel takes precedence over legacy single-media fields
-  const hasCarousel = Array.isArray(post.mediaItems) && post.mediaItems.length >= 2;
-  const isVideo = !hasCarousel && Boolean(post.videoUri);
-  const hasImage = !hasCarousel && !isVideo && ((post.imageIndex !== null && post.imageIndex !== undefined) || !!post.localImageUri);
-  const imageSource = post.localImageUri
-    ? { uri: post.localImageUri }
-    : post.imageIndex !== null && post.imageIndex !== undefined
-      ? POST_IMAGES[post.imageIndex]
+  const hasCarousel = Array.isArray(effectivePost.mediaItems) && effectivePost.mediaItems.length >= 2;
+  const isVideo = !hasCarousel && Boolean(effectivePost.videoUri);
+  const hasImage = !hasCarousel && !isVideo && ((effectivePost.imageIndex !== null && effectivePost.imageIndex !== undefined) || !!effectivePost.localImageUri);
+  const imageSource = effectivePost.localImageUri
+    ? { uri: effectivePost.localImageUri }
+    : effectivePost.imageIndex !== null && effectivePost.imageIndex !== undefined
+      ? POST_IMAGES[effectivePost.imageIndex]
       : null;
-  const isFollowing = isFollowingUser(post.userHandle);
+  const isFollowing = isFollowingUser(effectivePost.userHandle);
 
   const [detailVisible, setDetailVisible] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
   const [moreVisible, setMoreVisible] = useState(false);
   const [shareVisible, setShareVisible] = useState(false);
+  const [repostSheetVisible, setRepostSheetVisible] = useState(false);
   const [captionExpanded, setCaptionExpanded] = useState(false);
 
   // Animated values
@@ -121,6 +128,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
   const likeScale = useSharedValue(1);
   const pauseIconOpacity = useSharedValue(0);
   const sheetSlide = useRef(new RNAnimated.Value(300)).current;
+  const repostSheetSlide = useRef(new RNAnimated.Value(300)).current;
 
   const heartStyle = useAnimatedStyle(() => ({
     transform: [{ scale: heartScale.value }],
@@ -131,9 +139,9 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
 
   // ── Like animation ──
   const triggerLike = useCallback(() => {
-    if (!post.isLiked) {
+    if (!effectivePost.isLiked) {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-      toggleLike(post.id);
+      toggleLike(effectivePost.id);
     }
     heartScale.value = withSequence(
       withSpring(1.25, { damping: 6, stiffness: 200 }),
@@ -144,7 +152,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
       withTiming(1, { duration: 600 }),
       withTiming(0, { duration: 350 })
     );
-  }, [post.isLiked, post.id, toggleLike]);
+  }, [effectivePost.isLiked, effectivePost.id, toggleLike]);
 
   const togglePause = useCallback(() => {
     setIsPaused((prev) => {
@@ -169,23 +177,23 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
       withTiming(1.35, { duration: 80 }),
       withTiming(1, { duration: 100 })
     );
-    toggleLike(post.id);
+    toggleLike(effectivePost.id);
   };
 
   const handleFollow = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    toggleFollow(post.userHandle);
+    toggleFollow(effectivePost.userHandle);
   };
 
   const openMemberProfile = () => {
     router.push({
       pathname: '/member-profile',
       params: {
-        handle: post.userHandle,
-        name: post.userName,
-        initials: post.userInitials,
-        color: post.userColor,
-        userId: post.userId,
+        handle: effectivePost.userHandle,
+        name: effectivePost.userName,
+        initials: effectivePost.userInitials,
+        color: effectivePost.userColor,
+        userId: effectivePost.userId,
       },
     });
   };
@@ -202,11 +210,45 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
     });
   };
 
+  const openRepostSheet = () => {
+    setRepostSheetVisible(true);
+    RNAnimated.spring(repostSheetSlide, { toValue: 0, useNativeDriver: true, tension: 65, friction: 11 }).start();
+  };
+
+  const closeRepostSheet = (cb?: () => void) => {
+    RNAnimated.timing(repostSheetSlide, { toValue: 300, duration: 220, useNativeDriver: true }).start(() => {
+      setRepostSheetVisible(false);
+      cb?.();
+    });
+  };
+
+  const handleRepost = () => {
+    closeRepostSheet(() => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      resharePost(effectivePost.id, {
+        userName: (currentUser as any)?.displayName || (currentUser as any)?.name || 'You',
+        userHandle: (currentUser as any)?.handle || '@gracemember',
+        userInitials: (currentUser as any)?.initials || 'ME',
+        userColor: (currentUser as any)?.color || '#4A90A4',
+      });
+    });
+  };
+
   const isWeb = Platform.OS === 'web';
-  const likeColor = post.isLiked ? '#FF3B5C' : '#fff';
+  const likeColor = effectivePost.isLiked ? '#FF3B5C' : '#fff';
+  const alreadyReposted = !!effectivePost.isRepostedByMe;
+  const repostColor = alreadyReposted ? '#27AE60' : '#fff';
 
   return (
     <View style={s.card}>
+
+      {/* ── Repost banner ──────────────────────────────────────────────── */}
+      {isRepostCard && (
+        <View style={s.repostBanner}>
+          <Feather name="repeat" size={12} color="#27AE60" />
+          <Text style={s.repostBannerText}>{post.userName} reposted</Text>
+        </View>
+      )}
 
       {/* ── Header ─────────────────────────────────────────────────────── */}
       <View style={s.header}>
@@ -215,7 +257,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
           activeOpacity={isOwnPost ? 1 : 0.75}
           style={s.avatarWrap}
         >
-          <AvatarCircle initials={post.userInitials} color={post.userColor} size={40} />
+          <AvatarCircle initials={effectivePost.userInitials} color={effectivePost.userColor} size={40} />
           {/* Audio note badge */}
           <View style={s.musicBadge}>
             <Feather name="music" size={8} color="#fff" />
@@ -225,12 +267,12 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
         <View style={s.headerMeta}>
           <View style={s.nameRow}>
             <TouchableOpacity onPress={isOwnPost ? undefined : openMemberProfile} activeOpacity={0.7}>
-              <Text style={s.userName} numberOfLines={1}>{post.userHandle.replace('@', '')}</Text>
+              <Text style={s.userName} numberOfLines={1}>{effectivePost.userHandle.replace('@', '')}</Text>
             </TouchableOpacity>
             {!isOwnPost && <VerifiedBadge />}
           </View>
           <Text style={s.audioLine} numberOfLines={1}>
-            ♪ {post.userHandle.replace('@', '')} · Original audio
+            ♪ {effectivePost.userHandle.replace('@', '')} · Original audio
           </Text>
         </View>
 
@@ -242,16 +284,18 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
       </View>
 
       {/* ── Bold headline (caption above media) ───────────────────────── */}
-      <View style={s.headlineWrap}>
-        <Text style={s.headline} numberOfLines={captionExpanded ? undefined : 3}>
-          {post.caption}
-        </Text>
-      </View>
+      {!!effectivePost.caption && (
+        <View style={s.headlineWrap}>
+          <Text style={s.headline} numberOfLines={captionExpanded ? undefined : 3}>
+            {effectivePost.caption}
+          </Text>
+        </View>
+      )}
 
       {/* ── Media ─────────────────────────────────────────────────────── */}
-      {hasCarousel && post.mediaItems && (
+      {hasCarousel && effectivePost.mediaItems && (
         <MediaCarousel
-          items={post.mediaItems}
+          items={effectivePost.mediaItems}
           isActive={isActive}
           onDoubleTap={triggerLike}
         />
@@ -275,7 +319,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
         <GestureDetector gesture={videoTapGesture}>
           <View style={s.mediaWrap}>
             <VideoPlayer
-              uri={post.videoUri!}
+              uri={effectivePost.videoUri!}
               isActive={isActive && !isPaused}
               muted={isMuted}
               style={s.media}
@@ -293,7 +337,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
               </View>
             </Animated.View>
 
-            {/* Mute — bottom right (matches screenshot) */}
+            {/* Mute — bottom right */}
             <TouchableOpacity
               style={s.muteBtn}
               onPress={() => {
@@ -322,11 +366,11 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
           <Animated.View style={likeAnimStyle}>
             <StatBtn
               onPress={handleLike}
-              count={formatCount(post.likes)}
+              count={formatCount(effectivePost.likes)}
               color={likeColor}
               icon={
                 <AntDesign
-                  name={post.isLiked ? 'heart' : 'hearto'}
+                  name={effectivePost.isLiked ? 'heart' : 'hearto'}
                   size={22}
                   color={likeColor}
                 />
@@ -337,14 +381,19 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
           {/* Comment */}
           <StatBtn
             onPress={() => setDetailVisible(true)}
-            count={formatCount(post.comments)}
+            count={formatCount(effectivePost.comments)}
             icon={<Feather name="message-circle" size={22} color="#fff" />}
           />
 
           {/* Reposts */}
           <StatBtn
-            count={formatCount(post.reposts)}
-            icon={<Feather name="repeat" size={22} color="#fff" />}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              openRepostSheet();
+            }}
+            count={formatCount(effectivePost.reposts)}
+            color={repostColor}
+            icon={<Feather name="repeat" size={22} color={repostColor} />}
           />
 
           {/* Shares/Send */}
@@ -353,7 +402,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
               setShareVisible(true);
             }}
-            count={formatCount(post.shares)}
+            count={formatCount(effectivePost.shares)}
             icon={<Feather name="send" size={20} color="#fff" />}
           />
         </View>
@@ -362,25 +411,24 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
         <TouchableOpacity
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-            toggleSave(post.id);
+            toggleSave(effectivePost.id);
           }}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
           <Feather
             name="bookmark"
             size={22}
-            color={post.isSaved ? '#E07A54' : '#fff'}
+            color={effectivePost.isSaved ? '#E07A54' : '#fff'}
           />
         </TouchableOpacity>
       </View>
 
       {/* ── Liked by row ───────────────────────────────────────────────── */}
-      {post.likedByName && (
+      {effectivePost.likedByName && (
         <View style={s.likedByRow}>
-          {/* Two stacked tiny avatars */}
           <View style={s.avatarStack}>
             <View style={[s.tinyAvatar, { backgroundColor: '#9B59B6', zIndex: 2 }]}>
-              <Text style={s.tinyInitial}>{post.likedByName[0]}</Text>
+              <Text style={s.tinyInitial}>{effectivePost.likedByName[0]}</Text>
             </View>
             <View style={[s.tinyAvatar, { backgroundColor: '#D4A843', zIndex: 1, marginLeft: -8 }]}>
               <Text style={s.tinyInitial}>J</Text>
@@ -388,47 +436,79 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
           </View>
           <Text style={s.likedByText}>
             Liked by{' '}
-            <Text style={s.likedByBold}>{post.likedByName.split(' ')[0].toLowerCase().replace(' ', '_')}</Text>
+            <Text style={s.likedByBold}>{effectivePost.likedByName.split(' ')[0].toLowerCase().replace(' ', '_')}</Text>
             {' '}and others
           </Text>
         </View>
       )}
 
-      {/* ── Caption (inline, handle + text + more) ─────────────────────── */}
-      <View style={s.captionRow}>
-        <Text style={s.captionText} numberOfLines={captionExpanded ? undefined : 1}>
-          {post.caption}
-          {!captionExpanded && post.caption.length > 60 && (
-            <Text style={s.moreText} onPress={() => setCaptionExpanded(true)}>  more</Text>
-          )}
-        </Text>
-      </View>
+      {/* ── Caption ────────────────────────────────────────────────────── */}
+      {!!effectivePost.caption && (
+        <View style={s.captionRow}>
+          <Text style={s.captionText} numberOfLines={captionExpanded ? undefined : 1}>
+            {effectivePost.caption}
+            {!captionExpanded && effectivePost.caption.length > 60 && (
+              <Text style={s.moreText} onPress={() => setCaptionExpanded(true)}>  more</Text>
+            )}
+          </Text>
+        </View>
+      )}
 
       {/* ── Bible verse — always visible when present ───────────────────── */}
-      {post.bibleVerse && (
+      {effectivePost.bibleVerse && (
         <View style={s.verseCard}>
-          <Text style={s.verseText}>"{post.bibleVerse.text}"</Text>
-          <Text style={s.verseRef}>— {post.bibleVerse.reference}</Text>
+          <Text style={s.verseText}>"{effectivePost.bibleVerse.text}"</Text>
+          <Text style={s.verseRef}>— {effectivePost.bibleVerse.reference}</Text>
         </View>
       )}
 
       {/* ── Timestamp ──────────────────────────────────────────────────── */}
-      <Text style={s.timestamp}>{post.timestamp}</Text>
+      <Text style={s.timestamp}>{effectivePost.timestamp}</Text>
 
       {/* ── Modals ─────────────────────────────────────────────────────── */}
       {hasImage ? (
-        <PostDetailModal visible={detailVisible} post={post} onClose={() => setDetailVisible(false)} />
+        <PostDetailModal visible={detailVisible} post={effectivePost} onClose={() => setDetailVisible(false)} />
       ) : (
-        <CommentsModal visible={detailVisible} entityId={post.id} entityType="post" onClose={() => setDetailVisible(false)} />
+        <CommentsModal visible={detailVisible} entityId={effectivePost.id} entityType="post" onClose={() => setDetailVisible(false)} />
       )}
 
       {/* ── Share modal ────────────────────────────────────────────────── */}
       <SharePostModal
         visible={shareVisible}
-        post={post}
+        post={effectivePost}
         onClose={() => setShareVisible(false)}
-        onShareCountIncrement={() => incrementPostShares(post.id)}
+        onShareCountIncrement={() => incrementPostShares(effectivePost.id)}
       />
+
+      {/* ── Repost confirmation sheet ───────────────────────────────────── */}
+      <Modal transparent visible={repostSheetVisible} animationType="fade" onRequestClose={() => closeRepostSheet()}>
+        <TouchableOpacity style={s.sheetOverlay} activeOpacity={1} onPress={() => closeRepostSheet()}>
+          <RNAnimated.View
+            style={[
+              s.sheet,
+              { backgroundColor: '#1a1a1a', paddingBottom: isWeb ? 24 : insets.bottom + 8 },
+              { transform: [{ translateY: repostSheetSlide }] },
+            ]}
+          >
+            <View style={s.sheetHandle} />
+            <Text style={s.sheetTitle}>{alreadyReposted ? 'Undo repost?' : 'Repost to your feed?'}</Text>
+
+            <TouchableOpacity style={s.sheetRow} onPress={handleRepost}>
+              <View style={[s.sheetIcon, alreadyReposted && { backgroundColor: 'rgba(231,76,60,0.12)' }]}>
+                <Feather name="repeat" size={18} color={alreadyReposted ? '#E74C3C' : '#27AE60'} />
+              </View>
+              <Text style={[s.sheetLabel, alreadyReposted && { color: '#E74C3C' }]}>
+                {alreadyReposted ? 'Remove Repost' : 'Repost'}
+              </Text>
+              <Feather name="chevron-right" size={16} color="rgba(255,255,255,0.3)" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={s.sheetCancelBtn} onPress={() => closeRepostSheet()}>
+              <Text style={s.sheetCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </RNAnimated.View>
+        </TouchableOpacity>
+      </Modal>
 
       {/* ── More options sheet ──────────────────────────────────────────── */}
       <Modal transparent visible={moreVisible} animationType="fade" onRequestClose={() => closeMore()}>
@@ -447,7 +527,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
               { icon: 'eye-off', label: 'Not Interested', action: () => closeMore() },
               { icon: 'copy', label: 'Copy Link', action: () => closeMore() },
               { icon: 'share-2', label: 'Share Post', action: () => closeMore(() => setShareVisible(true)) },
-              ...(!isOwnPost ? [{ icon: isFollowing ? 'user-minus' : 'user-plus', label: isFollowing ? `Unfollow ${post.userHandle}` : `Follow ${post.userHandle}`, action: () => closeMore(handleFollow) }] : []),
+              ...(!isOwnPost ? [{ icon: isFollowing ? 'user-minus' : 'user-plus', label: isFollowing ? `Unfollow ${effectivePost.userHandle}` : `Follow ${effectivePost.userHandle}`, action: () => closeMore(handleFollow) }] : []),
               { icon: 'flag', label: 'Report Post', action: () => closeMore(), danger: true },
             ].map((opt) => (
               <TouchableOpacity
@@ -481,6 +561,21 @@ const s = StyleSheet.create({
     borderBottomWidth: 0.5,
     borderBottomColor: 'rgba(255,255,255,0.08)',
     paddingBottom: 4,
+  },
+
+  // Repost banner
+  repostBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 2,
+  },
+  repostBannerText: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
+    color: '#27AE60',
   },
 
   // Header

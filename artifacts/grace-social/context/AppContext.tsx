@@ -30,6 +30,12 @@ export interface Post {
   isSaved: boolean;
   timestamp: string;
   likedByName?: string;
+  /** True when this post is a reshare of another post */
+  isRepost?: boolean;
+  /** Snapshot of the original post at reshare time (one level deep — no nesting) */
+  originalPost?: Omit<Post, 'originalPost'>;
+  /** True on the ORIGINAL post when the current user has reshared it */
+  isRepostedByMe?: boolean;
 }
 
 export interface Comment {
@@ -214,6 +220,7 @@ interface AppContextType {
   toggleReelSave: (reelId: string) => void;
   incrementReelShares: (reelId: string) => void;
   incrementPostShares: (postId: string) => void;
+  resharePost: (postId: string, resharer: { userName: string; userHandle: string; userInitials: string; userColor: string }) => void;
   addPrayer: (prayer: Omit<Prayer, 'id'>) => void;
   addPost: (post: Omit<Post, 'id'>) => void;
   addReel: (reel: Omit<Reel, 'id'>) => void;
@@ -573,6 +580,63 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, shares: p.shares + 1 } : p));
   }, []);
 
+  const resharePost = useCallback((
+    postId: string,
+    resharer: { userName: string; userHandle: string; userInitials: string; userColor: string },
+  ) => {
+    setPosts((prev) => {
+      const target = prev.find((p) => p.id === postId);
+      if (!target) return prev;
+
+      // Always point to the true original — don't nest reposts
+      const root = (target.isRepost && target.originalPost) ? target.originalPost : target;
+      const rootId = root.id;
+
+      // Undo if already reposted
+      const existing = prev.find(
+        (p) => p.isRepost && p.originalPost?.id === rootId && p.userId === 'currentUser',
+      );
+      if (existing) {
+        return prev
+          .filter((p) => p.id !== existing.id)
+          .map((p) => p.id === rootId
+            ? { ...p, reposts: Math.max(0, p.reposts - 1), isRepostedByMe: false }
+            : p,
+          );
+      }
+
+      // Create repost wrapper
+      const newRepost: Post = {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        userId: 'currentUser',
+        userName: resharer.userName,
+        userHandle: resharer.userHandle,
+        userInitials: resharer.userInitials,
+        userColor: resharer.userColor,
+        imageIndex: null,
+        caption: '',
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        reposts: 0,
+        isLiked: false,
+        isSaved: false,
+        timestamp: 'just now',
+        isRepost: true,
+        originalPost: root as Omit<Post, 'originalPost'>,
+      };
+
+      // Increment repost count and flag the original
+      return [
+        newRepost,
+        ...prev.map((p) => p.id === rootId
+          ? { ...p, reposts: p.reposts + 1, isRepostedByMe: true }
+          : p,
+        ),
+      ];
+    });
+  }, []);
+
   // Per-user follow state keyed by userHandle — seed with handles already followed in initial reels
   const [followedHandles, setFollowedHandles] = useState<Record<string, boolean>>({
     '@pastorjames': true,
@@ -751,7 +815,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <AppContext.Provider value={{ posts, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, requestJoin, approveJoinRequest, declineJoinRequest, toggleReelLike, toggleReelSave, incrementReelShares, incrementPostShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, conversations, startOrOpenConversation, markConversationRead, addConversation }}>
+    <AppContext.Provider value={{ posts, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, requestJoin, approveJoinRequest, declineJoinRequest, toggleReelLike, toggleReelSave, incrementReelShares, incrementPostShares, resharePost, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, conversations, startOrOpenConversation, markConversationRead, addConversation }}>
       {children}
     </AppContext.Provider>
   );
