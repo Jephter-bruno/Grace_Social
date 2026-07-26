@@ -686,8 +686,42 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const followingCount = Object.values(followedHandles).filter(Boolean).length;
 
+  // ── Direct-message conversations ───────────────────────────────────────────
+  const [conversations, setConversations] = useState<Conversation[]>(INITIAL_CONVERSATIONS);
+
+  const markConversationRead = useCallback((convId: string) => {
+    setConversations((prev) => prev.map((c) => (c.id === convId ? { ...c, unread: 0 } : c)));
+  }, []);
+
+  const addConversation = useCallback((conv: Omit<Conversation, 'id' | 'messages'>): string => {
+    const id = `conv_${Date.now()}${Math.random().toString(36).substr(2, 4)}`;
+    const newConv: Conversation = { ...conv, id, messages: [] };
+    setConversations((prev) => [newConv, ...prev]);
+    return id;
+  }, []);
+
+  const startOrOpenConversation = useCallback(
+    (member: { id: string; name: string; initials: string; color: string }): string => {
+      // Return existing conversation for this member if one already exists
+      const existing = conversations.find((c) => c.memberId === member.id);
+      if (existing) return existing.id;
+      // Create a fresh one
+      return addConversation({
+        memberId: member.id,
+        userName: member.name,
+        userInitials: member.initials,
+        userColor: member.color,
+        status: 'Active now',
+        lastMessage: '',
+        time: 'Now',
+        unread: 0,
+      });
+    },
+    [conversations, addConversation]
+  );
+
   return (
-    <AppContext.Provider value={{ posts, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, requestJoin, toggleReelLike, toggleReelSave, incrementReelShares, incrementPostShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead }}>
+    <AppContext.Provider value={{ posts, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, requestJoin, toggleReelLike, toggleReelSave, incrementReelShares, incrementPostShares, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, conversations, startOrOpenConversation, markConversationRead, addConversation }}>
       {children}
     </AppContext.Provider>
   );

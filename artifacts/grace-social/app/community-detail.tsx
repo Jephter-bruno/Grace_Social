@@ -162,7 +162,7 @@ type Tab = 'feed' | 'members' | 'about';
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function CommunityDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { communities, toggleJoin, requestJoin } = useApp();
+  const { communities, toggleJoin, requestJoin, startOrOpenConversation } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
@@ -434,8 +434,19 @@ export default function CommunityDetailScreen() {
                 </View>
               )}
             </View>
-            <TouchableOpacity>
-              <Feather name="message-circle" size={20} color={colors.mutedForeground} />
+            <TouchableOpacity
+              onPress={() => {
+                const convId = startOrOpenConversation({
+                  id: member.id,
+                  name: member.name,
+                  initials: member.initials,
+                  color: member.color,
+                });
+                router.push({ pathname: '/messages' as any, params: { openConvId: convId } });
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Feather name="message-circle" size={20} color={community.color} />
             </TouchableOpacity>
           </View>
         );
