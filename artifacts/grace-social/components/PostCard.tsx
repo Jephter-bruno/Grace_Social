@@ -397,7 +397,6 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
       {/* ── Caption (inline, handle + text + more) ─────────────────────── */}
       <View style={s.captionRow}>
         <Text style={s.captionText} numberOfLines={captionExpanded ? undefined : 1}>
-          <Text style={s.captionHandle}>{post.userHandle.replace('@', '')}  </Text>
           {post.caption}
           {!captionExpanded && post.caption.length > 60 && (
             <Text style={s.moreText} onPress={() => setCaptionExpanded(true)}>  more</Text>
