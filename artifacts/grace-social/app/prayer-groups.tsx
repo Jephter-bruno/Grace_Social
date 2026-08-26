@@ -17,6 +17,7 @@ import {
   CreatePrayerCircleModal,
   NewCircleMember,
 } from '@/components/CreatePrayerCircleModal';
+import { GroupPrayerListModal } from '@/components/GroupPrayerListModal';
 import { useColors } from '@/hooks/useColors';
 
 // ─── Data model ────────────────────────────────────────────────────────────────
@@ -94,10 +95,12 @@ function CircleDetail({
   circle,
   onBack,
   onTogglePrayed,
+  onEditPrayerList,
 }: {
   circle: PrayerCircle;
   onBack: () => void;
   onTogglePrayed: () => void;
+  onEditPrayerList: () => void;
 }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -205,15 +208,40 @@ function CircleDetail({
         {/* Group prayer list */}
         <View style={[styles.prayerListCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.prayerListHeader}>
-            <Text style={styles.prayerListEmoji}>🙏</Text>
-            <Text style={[styles.prayerListLabel, { color: colors.foreground }]}>GROUP PRAYER LIST</Text>
-          </View>
-          {circle.groupPrayerList.map((item, i) => (
-            <View key={i} style={[styles.prayerListItem, { borderTopColor: colors.border }]}>
-              <Text style={[styles.prayerListIcon, { color: CORAL }]}>✝</Text>
-              <Text style={[styles.prayerListText, { color: colors.foreground }]}>{item}</Text>
+            <View style={styles.prayerListTitle}>
+              <Feather name="book-open" size={16} color={colors.primary} />
+              <Text style={[styles.prayerListLabel, { color: colors.foreground }]}>GROUP PRAYER LIST</Text>
             </View>
-          ))}
+            <TouchableOpacity
+              onPress={onEditPrayerList}
+              style={styles.editListButton}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Edit group prayer list"
+            >
+              <Feather name="edit-2" size={17} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+          {circle.groupPrayerList.length > 0 ? (
+            circle.groupPrayerList.map((item, i) => (
+              <View key={`${item}-${i}`} style={[styles.prayerListItem, { borderTopColor: colors.border }]}>
+                <Feather name="cross" size={14} color={CORAL} />
+                <Text style={[styles.prayerListText, { color: colors.foreground }]}>{item}</Text>
+              </View>
+            ))
+          ) : (
+            <TouchableOpacity
+              onPress={onEditPrayerList}
+              style={[styles.emptyPrayerList, { borderTopColor: colors.border }]}
+              accessibilityRole="button"
+              accessibilityLabel="Add the first group prayer request"
+            >
+              <Feather name="plus-circle" size={17} color={colors.primary} />
+              <Text style={[styles.emptyPrayerListText, { color: colors.mutedForeground }]}>
+                Add the first prayer request for this circle
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -340,6 +368,7 @@ export default function PrayerGroupsScreen() {
   const [circles, setCircles] = useState<PrayerCircle[]>(INITIAL_CIRCLES);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createVisible, setCreateVisible] = useState(false);
+  const [prayerListEditorVisible, setPrayerListEditorVisible] = useState(false);
 
   const selected = circles.find((c) => c.id === selectedId) ?? null;
 
@@ -350,6 +379,16 @@ export default function PrayerGroupsScreen() {
         c.id === selectedId ? { ...c, myPrayedToday: !c.myPrayedToday } : c
       )
     );
+  };
+
+  const handleSavePrayerList = (items: string[]) => {
+    if (!selectedId) return;
+    setCircles((prev) =>
+      prev.map((circle) =>
+        circle.id === selectedId ? { ...circle, groupPrayerList: items } : circle
+      )
+    );
+    setPrayerListEditorVisible(false);
   };
 
   const handleCreateCircle = (name: string, invitedMembers: NewCircleMember[]) => {
@@ -385,11 +424,23 @@ export default function PrayerGroupsScreen() {
 
   if (selected) {
     return (
-      <CircleDetail
-        circle={selected}
-        onBack={() => setSelectedId(null)}
-        onTogglePrayed={handleTogglePrayed}
-      />
+      <>
+        <CircleDetail
+          circle={selected}
+          onBack={() => {
+            setPrayerListEditorVisible(false);
+            setSelectedId(null);
+          }}
+          onTogglePrayed={handleTogglePrayed}
+          onEditPrayerList={() => setPrayerListEditorVisible(true)}
+        />
+        <GroupPrayerListModal
+          visible={prayerListEditorVisible}
+          initialItems={selected.groupPrayerList}
+          onClose={() => setPrayerListEditorVisible(false)}
+          onSave={handleSavePrayerList}
+        />
+      </>
     );
   }
 
@@ -585,16 +636,17 @@ const styles = StyleSheet.create({
   prayerListHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
     padding: 14,
     paddingBottom: 10,
   },
-  prayerListEmoji: { fontSize: 16 },
+  prayerListTitle: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   prayerListLabel: {
     fontSize: 12,
     fontFamily: 'Inter_700Bold',
     letterSpacing: 1,
   },
+  editListButton: { padding: 4 },
   prayerListItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -603,6 +655,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     borderTopWidth: 0.5,
   },
-  prayerListIcon: { fontSize: 14 },
   prayerListText: { fontSize: 14, fontFamily: 'Inter_400Regular', flex: 1 },
+  emptyPrayerList: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 14,
+    borderTopWidth: 0.5,
+  },
+  emptyPrayerListText: { fontSize: 13, fontFamily: 'Inter_400Regular' },
 });
