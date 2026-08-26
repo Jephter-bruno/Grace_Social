@@ -268,10 +268,6 @@ export function StoryViewer({
             </View>
             <Text style={styles.emptyTitle}>Share your story</Text>
             <Text style={styles.emptySub}>Add a photo, video, or text to share with your community.</Text>
-            <TouchableOpacity style={styles.emptyAddBtn} onPress={() => { onClose(); onRequestAddStory(); }}>
-              <Feather name="plus" size={18} color="#fff" />
-              <Text style={styles.emptyAddText}>Add to Story</Text>
-            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -402,17 +398,6 @@ export function StoryViewer({
               </TouchableWithoutFeedback>
             </View>
           </View>
-        )}
-
-        {/* ── Own story: add more ── */}
-        {currentStory.isOwn && !inputFocused && (
-          <TouchableOpacity
-            style={[styles.addMoreBtn, { bottom: 82 + insets.bottom }]}
-            onPress={() => { onClose(); onRequestAddStory(); }}
-          >
-            <Feather name="plus" size={15} color="#fff" />
-            <Text style={styles.addMoreText}>Add to Story</Text>
-          </TouchableOpacity>
         )}
 
         {/* ── Bottom drawer peek for story analytics ── */}
