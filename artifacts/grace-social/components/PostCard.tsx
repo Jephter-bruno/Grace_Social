@@ -1,4 +1,4 @@
-import { AntDesign, Feather } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
@@ -310,7 +310,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
           <Image source={imageSource} style={s.media} contentFit="cover" />
           {/* Double-tap like heart */}
           <Animated.View style={[s.heartOverlay, heartStyle]} pointerEvents="none">
-            <AntDesign name="heart" size={80} color="#fff" />
+            <Feather name="heart" size={80} color="#fff" />
           </Animated.View>
         </TouchableOpacity>
       )}
@@ -327,7 +327,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
 
             {/* Double-tap heart */}
             <Animated.View style={[s.heartOverlay, heartStyle]} pointerEvents="none">
-              <AntDesign name="heart" size={80} color="#fff" />
+            <Feather name="heart" size={80} color="#fff" />
             </Animated.View>
 
             {/* Pause/play flash */}
@@ -369,8 +369,8 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
               count={formatCount(effectivePost.likes)}
               color={likeColor}
               icon={
-                <AntDesign
-                  name={effectivePost.isLiked ? 'heart' : 'hearto'}
+                <Feather
+                  name="heart"
                   size={22}
                   color={likeColor}
                 />

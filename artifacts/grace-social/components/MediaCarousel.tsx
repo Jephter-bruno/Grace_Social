@@ -1,4 +1,4 @@
-import { AntDesign, Feather } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import React, { useCallback, useRef, useState } from 'react';
 import {
@@ -204,7 +204,7 @@ export function MediaCarousel({ items, isActive = false, onDoubleTap }: Props) {
 
       {/* Heart overlay — sits above everything */}
       <Animated.View style={[s.heartOverlay, heartStyle]} pointerEvents="none">
-        <AntDesign name="heart" size={90} color="#fff" />
+        <Feather name="heart" size={90} color="#fff" />
       </Animated.View>
 
       {/* Dot indicators — bottom center */}

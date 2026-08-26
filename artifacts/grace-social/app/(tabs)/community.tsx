@@ -1,4 +1,4 @@
-import { AntDesign, Feather } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
@@ -309,8 +309,8 @@ function AllTestimoniesModal({
                 {/* Footer */}
                 <View style={[al.footer, { borderTopColor: colors.border }]}>
                   <TouchableOpacity style={al.statBtn} onPress={() => onLike(t.id)} activeOpacity={0.7}>
-                    <AntDesign
-                      name={testimonyLikes[t.id]?.liked ? 'heart' : 'hearto'}
+                    <Feather
+                      name="heart"
                       size={14}
                       color={testimonyLikes[t.id]?.liked ? '#FF3B5C' : colors.mutedForeground}
                     />
@@ -476,7 +476,7 @@ function TestimonyReadModal({
         {/* ── Action bar (pinned at bottom) ── */}
         <View style={[rd.actionBar, { backgroundColor: colors.background, borderTopColor: colors.border, paddingBottom: insets.bottom + 8 }]}>
           <TouchableOpacity style={rd.actionBtn} onPress={onLike} activeOpacity={0.7}>
-            <AntDesign name={liked ? 'heart' : 'hearto'} size={22} color={liked ? '#FF3B5C' : colors.mutedForeground} />
+            <Feather name="heart" size={22} color={liked ? '#FF3B5C' : colors.mutedForeground} />
             <Text style={[rd.actionCount, { color: liked ? '#FF3B5C' : colors.mutedForeground }]}>
               {formatNum(likeCount)}
             </Text>
@@ -596,8 +596,8 @@ function TestimonyCard({
         <View style={tc.stats}>
           {/* Like button — interactive */}
           <TouchableOpacity style={tc.statBtn} onPress={onLike} activeOpacity={0.7}>
-            <AntDesign
-              name={liked ? 'heart' : 'hearto'}
+            <Feather
+              name="heart"
               size={14}
               color={liked ? '#FF3B5C' : colors.mutedForeground}
             />
