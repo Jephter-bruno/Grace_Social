@@ -188,8 +188,20 @@ export function StoryViewer({
       setItemIndex(0);
       setReplyText('');
       setInputFocused(false);
+      setAnalyticsVisible(false);
+      analyticsY.setValue(0);
+      setViewerSearch('');
     }
   }, [visible, initialIndex]);
+
+  // Analytics are private to the owner's stories. If navigation changes to
+  // another person's story, collapse the drawer immediately.
+  useEffect(() => {
+    if (analyticsVisible && !currentStory?.isOwn) {
+      setAnalyticsVisible(false);
+      analyticsY.setValue(0);
+    }
+  }, [storyIndex, analyticsVisible, currentStory?.isOwn, analyticsY]);
 
   // ── Actions ──
   const handleLike = useCallback(() => {
@@ -404,7 +416,7 @@ export function StoryViewer({
         )}
 
         {/* ── Bottom drawer peek for story analytics ── */}
-        {!inputFocused && (
+        {currentStory.isOwn && !inputFocused && (
           <TouchableOpacity
             style={[styles.analyticsPeek, { paddingBottom: isWeb ? 12 : insets.bottom + 8 }]}
             onPress={showAnalytics}
@@ -488,7 +500,7 @@ export function StoryViewer({
         ) : null}
 
         {/* ── Swipe-up analytics sheet ── */}
-        {analyticsVisible && (
+        {analyticsVisible && currentStory.isOwn && (
           <View style={styles.analyticsLayer}>
             <TouchableOpacity style={styles.analyticsBackdrop} onPress={hideAnalytics} activeOpacity={1} />
             <Animated.View
