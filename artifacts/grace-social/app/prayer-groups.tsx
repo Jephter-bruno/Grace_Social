@@ -186,8 +186,8 @@ function CircleDetail({
             },
           ]}
           onPress={() => {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             onTogglePrayed();
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
           }}
           activeOpacity={0.85}
         >

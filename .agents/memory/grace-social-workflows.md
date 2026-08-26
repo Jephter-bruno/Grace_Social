@@ -11,4 +11,4 @@ The API server must be started as: `PORT=3000 pnpm --filter @workspace/api-serve
 
 **How to apply:** Any time the Grace Social workflow is re-created, always hardcode `--port 5000` in the package.json dev script (not $PORT). API server always runs on port 3000.
 
-API URL for the browser: `EXPO_PUBLIC_API_URL=https://3000-$REPLIT_DEV_DOMAIN/api` is set in the grace-social dev script. This lets the browser call the API on port 3000 via Replit's port proxy.
+API URL for the browser: `EXPO_PUBLIC_API_URL=https://$REPLIT_DEV_DOMAIN/api` is set in the Grace Social dev script. The API is mounted at the main domain's `/api` path; the `3000-` prefix is not routed correctly.
