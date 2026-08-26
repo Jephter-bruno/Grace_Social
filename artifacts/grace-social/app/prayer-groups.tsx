@@ -13,6 +13,10 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AvatarCircle } from '@/components/AvatarCircle';
+import {
+  CreatePrayerCircleModal,
+  NewCircleMember,
+} from '@/components/CreatePrayerCircleModal';
 import { useColors } from '@/hooks/useColors';
 
 // ─── Data model ────────────────────────────────────────────────────────────────
@@ -220,9 +224,11 @@ function CircleDetail({
 function CircleList({
   circles,
   onSelect,
+  onCreate,
 }: {
   circles: PrayerCircle[];
   onSelect: (id: string) => void;
+  onCreate: () => void;
 }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -313,6 +319,7 @@ function CircleList({
         {/* Create circle card */}
         <TouchableOpacity
           style={[styles.createCard, { borderColor: CORAL + '80', backgroundColor: colors.card }]}
+          onPress={onCreate}
           activeOpacity={0.8}
         >
           <View style={[styles.createPlus, { backgroundColor: colors.muted }]}>
@@ -332,6 +339,7 @@ function CircleList({
 export default function PrayerGroupsScreen() {
   const [circles, setCircles] = useState<PrayerCircle[]>(INITIAL_CIRCLES);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [createVisible, setCreateVisible] = useState(false);
 
   const selected = circles.find((c) => c.id === selectedId) ?? null;
 
@@ -342,6 +350,37 @@ export default function PrayerGroupsScreen() {
         c.id === selectedId ? { ...c, myPrayedToday: !c.myPrayedToday } : c
       )
     );
+  };
+
+  const handleCreateCircle = (name: string, invitedMembers: NewCircleMember[]) => {
+    const circleId = `circle-${Date.now()}`;
+    const newCircle: PrayerCircle = {
+      id: circleId,
+      name,
+      streakDays: 0,
+      myPrayedToday: false,
+      groupPrayerList: [],
+      members: [
+        {
+          id: `${circleId}-you`,
+          displayName: 'You',
+          initials: 'Y',
+          color: '#4A90A4',
+          streakDays: 0,
+          prayedToday: false,
+          isYou: true,
+        },
+        ...invitedMembers.map((member) => ({
+          ...member,
+          streakDays: 0,
+          prayedToday: false,
+        })),
+      ],
+    };
+
+    setCircles((prev) => [newCircle, ...prev]);
+    setCreateVisible(false);
+    setSelectedId(circleId);
   };
 
   if (selected) {
@@ -355,10 +394,18 @@ export default function PrayerGroupsScreen() {
   }
 
   return (
-    <CircleList
-      circles={circles}
-      onSelect={(id) => setSelectedId(id)}
-    />
+    <>
+      <CircleList
+        circles={circles}
+        onSelect={(id) => setSelectedId(id)}
+        onCreate={() => setCreateVisible(true)}
+      />
+      <CreatePrayerCircleModal
+        visible={createVisible}
+        onClose={() => setCreateVisible(false)}
+        onCreate={handleCreateCircle}
+      />
+    </>
   );
 }
 
