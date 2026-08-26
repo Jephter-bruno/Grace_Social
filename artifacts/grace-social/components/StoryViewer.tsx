@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Animated,
+  FlatList,
   Image,
   KeyboardAvoidingView,
   Modal,
+  PanResponder,
   Platform,
   Share,
   StyleSheet,
@@ -53,11 +55,62 @@ export function StoryViewer({
   const [inputFocused, setInputFocused] = useState(false);
   const [sentMap, setSentMap] = useState<Record<string, boolean>>({});
   const [likedMap, setLikedMap] = useState<Record<string, boolean>>({});
+  const [analyticsVisible, setAnalyticsVisible] = useState(false);
+  const [viewerSearch, setViewerSearch] = useState('');
 
   const progressAnim = useRef(new Animated.Value(0)).current;
   const animRef = useRef<Animated.CompositeAnimation | null>(null);
   const heartScaleAnim = useRef(new Animated.Value(1)).current;
   const heartOpacityAnim = useRef(new Animated.Value(0)).current;
+  const analyticsY = useRef(new Animated.Value(0)).current;
+
+  const viewerNames = ['Sarah Williams', 'Pastor James', 'Mary K.', 'David L.', 'Grace Ministry', 'Thomas B.'];
+  const viewerColors = ['#E91E8C', '#D4A843', '#9B59B6', '#27AE60', '#F39C12', '#E74C3C'];
+  const viewers = viewerNames.map((name, index) => ({
+    id: `${storyIndex}-${index}`,
+    username: name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+    name,
+    initials: name.split(' ').map((part) => part[0]).join('').slice(0, 2),
+    color: viewerColors[index],
+    time: `${index + 1}h ago`,
+    liked: index === 0 || index === 3,
+  }));
+  const filteredViewers = viewers.filter((viewer) =>
+    `${viewer.username} ${viewer.name}`.toLowerCase().includes(viewerSearch.toLowerCase().trim())
+  );
+
+  const showAnalytics = useCallback(() => {
+    setAnalyticsVisible(true);
+    Animated.spring(analyticsY, {
+      toValue: 1,
+      useNativeDriver: true,
+      damping: 22,
+      stiffness: 180,
+    }).start();
+  }, [analyticsY]);
+
+  const hideAnalytics = useCallback(() => {
+    Animated.timing(analyticsY, {
+      toValue: 0,
+      duration: 220,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) setAnalyticsVisible(false);
+    });
+  }, [analyticsY]);
+
+  const analyticsPanResponder = useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 8,
+      onPanResponderMove: (_, gesture) => {
+        if (gesture.dy > 0) analyticsY.setValue(Math.max(0, 1 - gesture.dy / 520));
+      },
+      onPanResponderRelease: (_, gesture) => {
+        if (gesture.dy > 90) hideAnalytics();
+        else showAnalytics();
+      },
+    })
+  ).current;
 
   const currentStory = stories[storyIndex];
   const currentItem: StoryItem | undefined = currentStory?.items[itemIndex];
@@ -286,7 +339,7 @@ export function StoryViewer({
 
         {/* ── Scripture overlay ── */}
         {(currentItem?.scripture || currentItem?.label) && (
-          <View style={[styles.scriptureOverlay, { bottom: inputFocused ? 16 : 88 + insets.bottom }]} pointerEvents="none">
+          <View style={[styles.scriptureOverlay, { bottom: inputFocused ? 16 : 105 + insets.bottom }]}>
             <Text style={styles.scriptureRef}>
               {currentItem.scripture?.reference ?? currentItem.label}
             </Text>
@@ -294,6 +347,18 @@ export function StoryViewer({
               <Text style={styles.scriptureVerse} numberOfLines={4}>
                 {currentItem.scripture.text}
               </Text>
+            )}
+            {currentItem.scripture && (
+              <TouchableOpacity
+                style={styles.verseAction}
+                onPress={() => Share.share({
+                  message: `${currentItem.scripture?.text} — ${currentItem.scripture?.reference}`,
+                  title: currentItem.scripture?.reference,
+                })}
+              >
+                <Feather name="share-2" size={13} color="#D4A843" />
+                <Text style={styles.verseActionText}>Share verse</Text>
+              </TouchableOpacity>
             )}
           </View>
         )}
@@ -335,6 +400,34 @@ export function StoryViewer({
           >
             <Feather name="plus" size={15} color="#fff" />
             <Text style={styles.addMoreText}>Add to Story</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* ── Bottom drawer peek for story analytics ── */}
+        {!inputFocused && (
+          <TouchableOpacity
+            style={[styles.analyticsPeek, { paddingBottom: isWeb ? 12 : insets.bottom + 8 }]}
+            onPress={showAnalytics}
+            activeOpacity={0.85}
+          >
+            <View style={styles.analyticsHandle} />
+            <View style={styles.analyticsPeekRow}>
+              <View style={styles.viewCount}>
+                <Feather name="eye" size={16} color="#fff" />
+                <Text style={styles.viewCountText}>1,248 views</Text>
+              </View>
+              <View style={styles.peekAvatars}>
+                {viewers.slice(0, 4).map((viewer, index) => (
+                  <View
+                    key={viewer.id}
+                    style={[styles.peekAvatar, { backgroundColor: viewer.color, marginLeft: index === 0 ? 0 : -8, zIndex: 10 - index }]}
+                  >
+                    <Text style={styles.peekAvatarText}>{viewer.initials[0]}</Text>
+                  </View>
+                ))}
+              </View>
+              <Feather name="chevron-up" size={18} color="rgba(255,255,255,0.7)" />
+            </View>
           </TouchableOpacity>
         )}
 
@@ -393,6 +486,91 @@ export function StoryViewer({
             )}
           </View>
         ) : null}
+
+        {/* ── Swipe-up analytics sheet ── */}
+        {analyticsVisible && (
+          <View style={styles.analyticsLayer}>
+            <TouchableOpacity style={styles.analyticsBackdrop} onPress={hideAnalytics} activeOpacity={1} />
+            <Animated.View
+              {...analyticsPanResponder.panHandlers}
+              style={[
+                styles.analyticsSheet,
+                { paddingBottom: isWeb ? 18 : insets.bottom + 12 },
+                { transform: [{ translateY: analyticsY.interpolate({ inputRange: [0, 1], outputRange: [720, 0] }) }] },
+              ]}
+            >
+              <View style={styles.sheetDragHandle} />
+              <View style={styles.analyticsSummary}>
+                <View style={styles.analyticsThumb}>
+                  {hasMedia && currentItem?.mediaType === 'image' ? (
+                    <Image source={{ uri: currentItem.mediaUri }} style={styles.analyticsThumbImage} />
+                  ) : (
+                    <LinearGradient colors={gradient} style={styles.analyticsThumbImage}>
+                      <Text style={styles.analyticsThumbText} numberOfLines={2}>{currentItem?.text ?? 'Scripture'}</Text>
+                    </LinearGradient>
+                  )}
+                  {currentItem?.scripture && (
+                    <View style={styles.thumbVerse}><Text style={styles.thumbVerseText}>✦</Text></View>
+                  )}
+                </View>
+                <View style={styles.analyticsCountBlock}>
+                  <Text style={styles.analyticsCount}>1.2K</Text>
+                  <Text style={styles.analyticsCountLabel}>Views</Text>
+                </View>
+                <View style={styles.summaryAvatars}>
+                  {viewers.slice(0, 3).map((viewer, index) => (
+                    <View key={viewer.id} style={[styles.summaryAvatar, { backgroundColor: viewer.color, marginLeft: index === 0 ? 0 : -10, zIndex: 5 - index }]}>
+                      <Text style={styles.summaryAvatarText}>{viewer.initials}</Text>
+                    </View>
+                  ))}
+                </View>
+                <TouchableOpacity style={styles.summaryIcon} onPress={hideAnalytics}>
+                  <Feather name="eye" size={19} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.summaryIcon}>
+                  <Feather name="more-horizontal" size={21} color="#fff" />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.viewerHeader}>
+                <Text style={styles.viewerTitle}>Viewers</Text>
+                <View style={styles.viewerSearch}>
+                  <Feather name="search" size={15} color="rgba(255,255,255,0.5)" />
+                  <TextInput
+                    style={styles.viewerSearchInput}
+                    placeholder="Search viewers"
+                    placeholderTextColor="rgba(255,255,255,0.45)"
+                    value={viewerSearch}
+                    onChangeText={setViewerSearch}
+                  />
+                </View>
+              </View>
+
+              <FlatList
+                data={filteredViewers}
+                keyExtractor={(viewer) => viewer.id}
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={styles.viewerList}
+                renderItem={({ item: viewer }) => (
+                  <View style={styles.viewerRow}>
+                    <View style={[styles.viewerAvatar, { backgroundColor: viewer.color }]}>
+                      <Text style={styles.viewerAvatarText}>{viewer.initials}</Text>
+                    </View>
+                    <View style={styles.viewerDetails}>
+                      <Text style={styles.viewerUsername}>@{viewer.username}</Text>
+                      <Text style={styles.viewerMeta}>{viewer.name} · {viewer.time}</Text>
+                    </View>
+                    {viewer.liked && <Text style={styles.viewerHeart}>♥</Text>}
+                    <TouchableOpacity style={styles.viewerMore}>
+                      <Feather name="more-horizontal" size={19} color="rgba(255,255,255,0.55)" />
+                    </TouchableOpacity>
+                  </View>
+                )}
+                ListEmptyComponent={<Text style={styles.noViewers}>No viewers found</Text>}
+              />
+            </Animated.View>
+          </View>
+        )}
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -428,6 +606,8 @@ const styles = StyleSheet.create({
   scriptureOverlay: { position: 'absolute', left: 16, right: 16, backgroundColor: 'rgba(0,0,0,0.52)', borderRadius: 14, padding: 14, borderLeftWidth: 3, borderLeftColor: '#D4A843' },
   scriptureRef: { fontSize: 11, fontFamily: 'Inter_700Bold', color: '#D4A843', marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.6 },
   scriptureVerse: { fontSize: 13, fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.9)', lineHeight: 19, fontStyle: 'italic' },
+  verseAction: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', marginTop: 9, paddingVertical: 2 },
+  verseActionText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: '#D4A843' },
 
   // Caption bar
   captionBar: { position: 'absolute', left: 16, right: 16, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10 },
@@ -473,6 +653,102 @@ const styles = StyleSheet.create({
   sendBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: CORAL, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   iconActionBtn: { padding: 6, flexShrink: 0 },
   heartIcon: { fontSize: 26 },
+
+  // Analytics drawer peek
+  analyticsPeek: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: 8,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(0,0,0,0.62)',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    zIndex: 12,
+  },
+  analyticsHandle: {
+    alignSelf: 'center',
+    width: 36,
+    height: 4,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.45)',
+    marginBottom: 9,
+  },
+  analyticsPeekRow: { flexDirection: 'row', alignItems: 'center', minHeight: 30 },
+  viewCount: { flexDirection: 'row', alignItems: 'center', gap: 7, flex: 1 },
+  viewCountText: { color: '#fff', fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  peekAvatars: { flexDirection: 'row', alignItems: 'center', marginRight: 14 },
+  peekAvatar: {
+    width: 27, height: 27, borderRadius: 14,
+    borderWidth: 2, borderColor: '#000',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  peekAvatarText: { color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' },
+
+  // Analytics sheet
+  analyticsLayer: { ...StyleSheet.absoluteFillObject, zIndex: 50, justifyContent: 'flex-end' },
+  analyticsBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.48)' },
+  analyticsSheet: {
+    minHeight: '70%',
+    maxHeight: '88%',
+    backgroundColor: '#090909',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 10,
+    zIndex: 2,
+  },
+  sheetDragHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.32)',
+    marginBottom: 16,
+  },
+  analyticsSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingBottom: 17,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.1)',
+    gap: 10,
+  },
+  analyticsThumb: { width: 52, height: 70, borderRadius: 8, overflow: 'hidden', backgroundColor: '#222', position: 'relative' },
+  analyticsThumbImage: { width: '100%', height: '100%', alignItems: 'center', justifyContent: 'center', padding: 4 },
+  analyticsThumbText: { color: '#fff', fontSize: 8, fontFamily: 'Inter_600SemiBold', textAlign: 'center', lineHeight: 11 },
+  thumbVerse: { position: 'absolute', right: 3, bottom: 3, width: 16, height: 16, borderRadius: 8, backgroundColor: 'rgba(212,168,67,0.9)', alignItems: 'center', justifyContent: 'center' },
+  thumbVerseText: { color: '#111', fontSize: 9 },
+  analyticsCountBlock: { minWidth: 48, gap: 2 },
+  analyticsCount: { color: '#fff', fontSize: 22, fontFamily: 'Inter_700Bold' },
+  analyticsCountLabel: { color: 'rgba(255,255,255,0.55)', fontSize: 11, fontFamily: 'Inter_400Regular' },
+  summaryAvatars: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+  summaryAvatar: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: '#090909', alignItems: 'center', justifyContent: 'center' },
+  summaryAvatarText: { color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' },
+  summaryIcon: { padding: 5 },
+  viewerHeader: { paddingHorizontal: 16, paddingTop: 17, paddingBottom: 10, gap: 11 },
+  viewerTitle: { color: '#fff', fontSize: 18, fontFamily: 'Inter_700Bold' },
+  viewerSearch: {
+    height: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+  },
+  viewerSearchInput: { flex: 1, color: '#fff', fontSize: 13, fontFamily: 'Inter_400Regular', padding: 0 },
+  viewerList: { paddingHorizontal: 16, paddingBottom: 8 },
+  viewerRow: { flexDirection: 'row', alignItems: 'center', minHeight: 62, gap: 11 },
+  viewerAvatar: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#D4A843' },
+  viewerAvatarText: { color: '#fff', fontSize: 12, fontFamily: 'Inter_700Bold' },
+  viewerDetails: { flex: 1, gap: 3 },
+  viewerUsername: { color: '#fff', fontSize: 14, fontFamily: 'Inter_700Bold' },
+  viewerMeta: { color: 'rgba(255,255,255,0.55)', fontSize: 12, fontFamily: 'Inter_400Regular' },
+  viewerHeart: { color: '#FF3B5C', fontSize: 20, marginRight: 7 },
+  viewerMore: { padding: 5 },
+  noViewers: { color: 'rgba(255,255,255,0.5)', textAlign: 'center', paddingVertical: 28, fontSize: 14, fontFamily: 'Inter_400Regular' },
 
   // Empty own story
   emptyOwnState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 16 },

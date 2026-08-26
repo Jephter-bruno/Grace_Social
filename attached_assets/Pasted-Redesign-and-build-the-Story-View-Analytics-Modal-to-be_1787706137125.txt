@@ -1,0 +1,58 @@
+Redesign and build the Story View & Analytics Modal to be a 100% exact replica of Instagram’s Story UI layout, while retaining the Scripture / Verse of the Day integration.
+
+1. Active Story Container & Scripture View (Default Screen)
+Background & Layout: Dark theme (#000000 background) full-screen story viewer.
+
+Top Bar Controls:
+
+Progress bar segments at the top indicating story duration/count.
+
+Header row showing user avatar, username, timestamp (e.g., 2h ago), and close button (✕).
+
+Scripture Section Overlay (Retained Feature):
+
+Display a styled Verse of the Day / Scripture Box over the story backdrop.
+
+Card design with semi-transparent dark background, clean typography for the verse text, reference tag (e.g., Isaiah 41:10), and a "Share" or "Open Verse" action button.
+
+Bottom Action Drawer Peek:
+
+Displays a bottom bar with:
+
+Left: Small eye icon 👁️ with total view count (e.g., "1,248 views").
+
+Middle/Right: Horizontal stack of floating/overlapping viewer avatars previewing who viewed the story.
+
+Upward indicator/drag handle to prompt swiping up for full analytics.
+
+2. Swipe-Up Story Analytics Sheet (100% Instagram Replica)
+When the user swipes up or taps the bottom view bar, slide up a dark modal sheet (#000000 background) containing:
+
+Header Controls:
+
+Left: Active story thumbnail (showing the miniature preview with the Scripture overlay).
+
+Middle: Bold total view counter (e.g., "1.2K Views").
+
+Right: Eye icon toggle and story management options (Delete / Insights toggle).
+
+Floating Avatar Header Stack:
+
+Overlapping circular viewer avatars with dark border separators positioned right next to the total view count.
+
+Scrollable Viewer List ("Viewers"):
+
+Header: "Viewers" title with a search bar input to filter viewers.
+
+Viewer Rows:
+
+Avatar: Circular profile picture with optional gradient ring for active stories.
+
+User Details: Bold @username on top line; full name and time viewed (e.g., Sarah Williams · 2h ago) on muted second line.
+
+Interaction Icons: Red heart ❤️ indicator if the viewer liked the story, alongside a three-dots menu icon •••.
+
+3. Gesture Navigation
+Swipe Up: Slides up the viewer analytics sheet over the active Scripture story screen.
+
+Swipe Down: Collapses the sheet back down, restoring full visibility to the Scripture story view.
