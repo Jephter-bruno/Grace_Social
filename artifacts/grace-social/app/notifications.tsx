@@ -20,6 +20,7 @@ import { AvatarCircle } from '@/components/AvatarCircle';
 import { POST_IMAGES } from '@/constants/images';
 import { Notification, NotificationType, useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 type FilterKey =
   | 'all'
@@ -145,6 +146,7 @@ export default function NotificationsScreen() {
   const isWeb = Platform.OS === 'web';
   const { notifications, markAllRead, markNotificationRead, deleteNotification, deleteAllNotifications } = useApp();
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all');
+  const { refreshing, onRefresh } = usePullToRefresh();
 
   const filtered = useMemo(() => {
     const filter = FILTERS.find((f) => f.key === activeFilter)!;
@@ -350,6 +352,8 @@ export default function NotificationsScreen() {
         }}
         contentContainerStyle={{ paddingBottom: isWeb ? 34 : insets.bottom + 24 }}
         showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         ListEmptyComponent={
           <View style={styles.empty}>
             <View style={[styles.emptyIcon, { backgroundColor: colors.muted }]}>

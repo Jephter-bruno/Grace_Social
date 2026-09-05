@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 interface Verse {
   reference: string;
@@ -196,6 +197,7 @@ export default function BibleScreen() {
   const [selectedBook, setSelectedBook] = useState<Book | null>(null);
   const [bookTestamentFilter, setBookTestamentFilter] = useState<'All' | 'Old' | 'New'>('All');
   const [bookSearch, setBookSearch] = useState('');
+  const { refreshing, onRefresh } = usePullToRefresh();
 
   const oldBooks = BOOKS.filter((b) => b.testament === 'Old');
   const newBooks = BOOKS.filter((b) => b.testament === 'New');
@@ -334,6 +336,8 @@ export default function BibleScreen() {
             data={filteredVerses}
             keyExtractor={(item) => item.reference}
             renderItem={renderVerse}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
             contentContainerStyle={{ padding: 12, gap: 12, paddingBottom: isWeb ? 34 : insets.bottom + 20 }}
             showsVerticalScrollIndicator={false}
           />
@@ -361,6 +365,8 @@ export default function BibleScreen() {
               data={BOOK_VERSES[selectedBook.name]}
               keyExtractor={(item) => item.reference}
               renderItem={renderVerse}
+              refreshing={refreshing}
+              onRefresh={onRefresh}
               contentContainerStyle={{ padding: 12, gap: 12, paddingBottom: isWeb ? 34 : insets.bottom + 20 }}
               showsVerticalScrollIndicator={false}
             />
@@ -385,6 +391,8 @@ export default function BibleScreen() {
         <FlatList
           data={filteredBooks}
           keyExtractor={(item) => item.name}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
           contentContainerStyle={{ padding: 12, gap: 8, paddingBottom: isWeb ? 34 : insets.bottom + 20 }}
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
@@ -499,6 +507,8 @@ export default function BibleScreen() {
             data={searchQ.trim() ? filteredVerses : []}
             keyExtractor={(item) => item.reference}
             renderItem={renderVerse}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
             contentContainerStyle={{ padding: 12, gap: 12, paddingBottom: isWeb ? 34 : insets.bottom + 20 }}
             showsVerticalScrollIndicator={false}
             ListEmptyComponent={

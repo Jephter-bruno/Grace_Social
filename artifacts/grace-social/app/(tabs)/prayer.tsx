@@ -22,6 +22,7 @@ import { TestimonyCard } from '@/components/TestimonyCard';
 import { TestimonyCommentSheet } from '@/components/TestimonyCommentSheet';
 import { Prayer, PrayerCategory, useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { Testimony, useTestimonies } from '@/hooks/useTestimonies';
 
 type FilterKey = 'all' | PrayerCategory;
@@ -51,6 +52,7 @@ export default function PrayerScreen() {
   const [showModal, setShowModal] = useState(false);
   const [showTestimonyModal, setShowTestimonyModal] = useState(false);
   const [commentTestimony, setCommentTestimony] = useState<Testimony | null>(null);
+  const { refreshing, onRefresh } = usePullToRefresh();
   const { testimonies, loading: testimonyLoading, error: testimonyError, toggleLike, addTestimony } = useTestimonies();
 
   const filtered = useMemo(
@@ -180,6 +182,8 @@ export default function PrayerScreen() {
             />
           )}
           showsVerticalScrollIndicator={false}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
           contentContainerStyle={{ paddingBottom: isWeb ? 34 : 100 }}
           ListHeaderComponent={
             <View>
@@ -255,6 +259,8 @@ export default function PrayerScreen() {
         keyExtractor={(item) => item.type === 'ad' ? `ad-${item.adIndex}` : item.data.id}
         renderItem={renderItem}
         showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         contentContainerStyle={{ paddingBottom: isWeb ? 34 : 100 }}
         ListHeaderComponent={
           <View>

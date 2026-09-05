@@ -8,6 +8,7 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Switch,
@@ -25,6 +26,7 @@ import { useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { useColors } from '@/hooks/useColors';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_GAP = 1.5;
@@ -223,6 +225,7 @@ export default function ProfileScreen() {
   ]);
   const [chatInput, setChatInput] = useState('');
   const [chatTyping, setChatTyping] = useState(false);
+  const { refreshing, onRefresh } = usePullToRefresh();
 
   const handleToggleDark = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -831,7 +834,18 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: isWeb ? 34 : 100 }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+        contentContainerStyle={{ paddingBottom: isWeb ? 34 : 100 }}
+      >
 
         {/* ── Cover photo ── */}
         <View style={styles.coverContainer}>

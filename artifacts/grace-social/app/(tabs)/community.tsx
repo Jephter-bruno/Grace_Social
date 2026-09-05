@@ -22,6 +22,7 @@ import { Community, useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
 import { useTestimonies } from '@/hooks/useTestimonies';
 import { useColors } from '@/hooks/useColors';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -828,6 +829,7 @@ export default function CommunityScreen() {
 
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<TabKey>('discover');
+  const { refreshing, onRefresh } = usePullToRefresh();
 
   // ── Testimony interactive state ──
   const [testimonyLikes, setTestimonyLikes] = useState<Record<string, { liked: boolean; count: number }>>(
@@ -949,6 +951,8 @@ export default function CommunityScreen() {
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <CommunityCard community={item} />}
         showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         contentContainerStyle={{
           paddingHorizontal: 16,
           paddingBottom: isWeb ? 90 : insets.bottom + 88,

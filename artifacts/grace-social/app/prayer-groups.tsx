@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,6 +20,7 @@ import {
 } from '@/components/CreatePrayerCircleModal';
 import { GroupPrayerListModal } from '@/components/GroupPrayerListModal';
 import { useColors } from '@/hooks/useColors';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 // ─── Data model ────────────────────────────────────────────────────────────────
 
@@ -106,6 +108,7 @@ function CircleDetail({
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
   const topPad = (isWeb ? 67 : insets.top) + 8;
+  const { refreshing, onRefresh } = usePullToRefresh();
 
   const allMembers = circle.members.map((m) =>
     m.isYou ? { ...m, prayedToday: circle.myPrayedToday } : m
@@ -127,6 +130,14 @@ function CircleDetail({
       </View>
 
       <ScrollView
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: isWeb ? 40 : insets.bottom + 40 }}
       >
@@ -262,6 +273,7 @@ function CircleList({
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
   const topPad = (isWeb ? 67 : insets.top) + 8;
+  const { refreshing, onRefresh } = usePullToRefresh();
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -274,6 +286,14 @@ function CircleList({
       </View>
 
       <ScrollView
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: isWeb ? 40 : insets.bottom + 40 }}
       >
@@ -369,7 +389,6 @@ export default function PrayerGroupsScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createVisible, setCreateVisible] = useState(false);
   const [prayerListEditorVisible, setPrayerListEditorVisible] = useState(false);
-
   const selected = circles.find((c) => c.id === selectedId) ?? null;
 
   const handleTogglePrayed = () => {

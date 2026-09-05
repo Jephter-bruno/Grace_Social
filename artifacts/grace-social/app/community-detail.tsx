@@ -19,6 +19,7 @@ import { PostCard } from '@/components/PostCard';
 import { PendingMember, Post, PostMediaItem, useApp } from '@/context/AppContext';
 import { POST_VIDEOS } from '@/constants/videos';
 import { useColors } from '@/hooks/useColors';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 // ─── Seed community posts (real Post shape so PostCard works) ────────────────
 const SEED_POSTS: Post[] = [
@@ -175,6 +176,7 @@ export default function CommunityDetailScreen() {
   const [showModal, setShowModal] = useState(false);
   const [communityPosts, setCommunityPosts] = useState<Post[]>(SEED_POSTS);
   const [activePostId, setActivePostId] = useState<string | null>(null);
+  const { refreshing, onRefresh } = usePullToRefresh();
 
   // Video viewability tracking — same pattern as home feed
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 55 });
@@ -577,6 +579,8 @@ export default function CommunityDetailScreen() {
         data={listData}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         ListHeaderComponent={ListHeader}
         ListFooterComponent={ListFooter}
         showsVerticalScrollIndicator={false}

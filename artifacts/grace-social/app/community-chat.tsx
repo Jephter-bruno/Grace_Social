@@ -19,6 +19,7 @@ import { AvatarCircle } from '@/components/AvatarCircle';
 import { VersePickerModal } from '@/components/VersePickerModal';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 type MessageType = 'text' | 'verse' | 'prayer' | 'image' | 'announcement';
 
@@ -173,6 +174,7 @@ export default function CommunityChatScreen() {
   const [versePickerOpen, setVersePickerOpen] = useState(false);
   const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
   const [onlineCount] = useState(Math.floor(Math.random() * 18) + 8);
+  const { refreshing, onRefresh } = usePullToRefresh();
   const simIdx = useRef(0);
 
   const communityColor = community?.color ?? '#4A90A4';
@@ -496,6 +498,8 @@ export default function CommunityChatScreen() {
         <FlatList
           ref={flatListRef}
           data={messages}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
           keyExtractor={(m) => m.id}
           renderItem={renderMessage}
           contentContainerStyle={{ padding: 12, gap: 6, paddingBottom: 12 }}

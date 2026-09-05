@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AvatarCircle } from '@/components/AvatarCircle';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 interface FollowUser {
   id: number;
@@ -64,6 +65,7 @@ export default function FollowListScreen() {
       setLoading(false);
     }
   }, [userId, type, authToken]);
+  const { refreshing, onRefresh } = usePullToRefresh(fetchList);
 
   useEffect(() => {
     fetchList();
@@ -186,6 +188,8 @@ export default function FollowListScreen() {
           data={users}
           keyExtractor={(item) => String(item.id)}
           renderItem={renderItem}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
           contentContainerStyle={{ paddingBottom: isWeb ? 24 : insets.bottom + 24 }}
           showsVerticalScrollIndicator={false}
         />

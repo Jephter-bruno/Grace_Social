@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useColors } from '@/hooks/useColors';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -83,6 +85,7 @@ export default function LiveEventsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
+  const { refreshing, onRefresh } = usePullToRefresh();
   const topPad = (isWeb ? 67 : insets.top) + 8;
 
   const [events, setEvents] = useState<UpcomingEvent[]>(UPCOMING);
@@ -111,6 +114,14 @@ export default function LiveEventsScreen() {
       </View>
 
       <ScrollView
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: isWeb ? 40 : insets.bottom + 40 }}
       >

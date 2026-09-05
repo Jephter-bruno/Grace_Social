@@ -8,6 +8,7 @@ import {
   Dimensions,
   FlatList,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,6 +23,7 @@ import { POST_IMAGES } from '@/constants/images';
 import { useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CELL = Math.floor(SCREEN_WIDTH / 3);
@@ -251,6 +253,9 @@ export default function SearchScreen() {
       setPeopleLoading(false);
     }
   }, [authToken]);
+  const { refreshing, onRefresh } = usePullToRefresh(
+    activeTab === 'People' && query.trim() ? () => searchPeople(query) : undefined
+  );
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -484,6 +489,14 @@ export default function SearchScreen() {
         /* ── Idle: Explore grid + Trending + Suggested ── */
         <ScrollView
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
           contentContainerStyle={{ paddingBottom: isWeb ? 34 : insets.bottom + 20 }}
         >
           <ExploreGrid />
@@ -502,6 +515,8 @@ export default function SearchScreen() {
             renderItem={renderPerson}
             contentContainerStyle={{ paddingBottom: isWeb ? 34 : insets.bottom + 20 }}
             showsVerticalScrollIndicator={false}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
             ListEmptyComponent={
               <View style={styles.empty}>
                 <Feather name="users" size={40} color={colors.mutedForeground} />
@@ -520,6 +535,8 @@ export default function SearchScreen() {
           renderItem={renderReelResult}
           contentContainerStyle={{ paddingBottom: isWeb ? 34 : insets.bottom + 20 }}
           showsVerticalScrollIndicator={false}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Feather name="play-circle" size={40} color={colors.mutedForeground} />
@@ -536,6 +553,8 @@ export default function SearchScreen() {
           renderItem={renderTopResult}
           contentContainerStyle={{ paddingBottom: isWeb ? 34 : insets.bottom + 20 }}
           showsVerticalScrollIndicator={false}
+          refreshing={refreshing}
+          onRefresh={onRefresh}
           ListEmptyComponent={
             <View style={styles.empty}>
               <Feather name="search" size={40} color={colors.mutedForeground} />

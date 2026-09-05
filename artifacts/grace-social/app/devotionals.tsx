@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import {
   Modal,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -17,6 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useColors } from '@/hooks/useColors';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -684,6 +686,7 @@ export default function DevotionalsScreen() {
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
   const topPad = isWeb ? 67 : insets.top;
+  const { refreshing, onRefresh } = usePullToRefresh();
 
   const [myPlans, setMyPlans] = useState<ActivePlan[]>([
     {
@@ -776,6 +779,14 @@ export default function DevotionalsScreen() {
       </View>
 
       <ScrollView
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[styles.scroll, { paddingBottom: isWeb ? 40 : insets.bottom + 40 }]}
       >

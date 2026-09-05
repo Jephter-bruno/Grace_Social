@@ -3,3 +3,4 @@
 - [Grace Social Workflow Setup](grace-social-workflows.md) — Two workflows required; Expo web must hardcode port 5000 (not $PORT); API server on PORT=3000.
 - [Grace Social Media Storage](grace-social-media-storage.md) — Store picked media in PostgreSQL bytea; proxy-aware HTTPS URLs are required for cross-device playback.
 - [Grace Social SDK 57 Compatibility](grace-social-sdk57.md) — SDK 57 changes native tab subcomponents and React Native fill-style typings; reinstall before debugging mismatched runtime versions.
+- [Grace Social Dependency Alignment](grace-social-dependency-alignment.md) — When declared Expo SDK modules are missing from Metro, reconcile the filtered workspace install before debugging app code.

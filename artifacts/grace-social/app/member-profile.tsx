@@ -18,6 +18,7 @@ import { AvatarCircle } from '@/components/AvatarCircle';
 import { POST_IMAGES } from '@/constants/images';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_GAP = 1.5;
@@ -56,6 +57,7 @@ export default function MemberProfileScreen() {
   const isWeb = Platform.OS === 'web';
   const topPad = isWeb ? 67 : insets.top;
   const { posts, toggleFollow, isFollowingUser } = useApp();
+  const { refreshing, onRefresh } = usePullToRefresh();
 
   const params = useLocalSearchParams<{
     handle: string;
@@ -190,6 +192,8 @@ export default function MemberProfileScreen() {
         data={memberPosts}
         keyExtractor={(item) => item.id}
         renderItem={renderPost}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         numColumns={memberPosts.length > 0 ? 3 : 1}
         key={memberPosts.length > 0 ? 'grid' : 'list'}
         columnWrapperStyle={memberPosts.length > 0 ? styles.row : undefined}

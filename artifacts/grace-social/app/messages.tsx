@@ -29,6 +29,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Conversation, DMMessage, useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { uploadSocialMedia } from '@/lib/socialApi';
 
 // ─── Local type alias (DMMessage re-exported as Message for ConversationView) ─
@@ -257,6 +258,7 @@ function ConversationView({ conv, onBack }: { conv: Conversation; onBack: () => 
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const listRef = useRef<FlatList>(null);
+  const { refreshing, onRefresh } = usePullToRefresh();
 
   const scrollToEnd = (animated = true) =>
     setTimeout(() => listRef.current?.scrollToEnd({ animated }), 80);
@@ -457,6 +459,8 @@ function ConversationView({ conv, onBack }: { conv: Conversation; onBack: () => 
       <FlatList
         ref={listRef}
         data={messages}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         keyExtractor={(m) => m.id}
         contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 12, paddingBottom: 12, gap: 2 }}
         showsVerticalScrollIndicator={false}
@@ -610,6 +614,7 @@ export default function MessagesScreen() {
   const [search, setSearch] = useState('');
   const [showNewConv, setShowNewConv] = useState(false);
   const [newName, setNewName] = useState('');
+  const { refreshing, onRefresh } = usePullToRefresh();
 
   // Auto-open conversation when navigated from community member message button
   const didAutoOpen = useRef(false);
@@ -758,6 +763,8 @@ export default function MessagesScreen() {
       {/* Conversation rows */}
       <FlatList
         data={filteredConvs}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         keyExtractor={(c) => c.id}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: isWeb ? 34 : insets.bottom + 20 }}

@@ -7,6 +7,7 @@ import { NewReelModal } from '@/components/NewReelModal';
 import { ReelAdItem } from '@/components/ReelAdItem';
 import { ReelItem } from '@/components/ReelItem';
 import { Reel, useApp } from '@/context/AppContext';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const AD_EVERY = 3;
@@ -33,6 +34,7 @@ export default function ReelsScreen() {
   const isWeb = Platform.OS === 'web';
   const [activeIndex, setActiveIndex] = useState(0);
   const [showNewReel, setShowNewReel] = useState(false);
+  const { refreshing, onRefresh } = usePullToRefresh();
 
   const feed = useMemo(() => buildReelFeed(reels), [reels]);
 
@@ -82,6 +84,8 @@ export default function ReelsScreen() {
         snapToInterval={SCREEN_HEIGHT}
         snapToAlignment="start"
         style={styles.list}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         viewabilityConfig={viewabilityConfig.current}
         onViewableItemsChanged={onViewableItemsChanged.current}
       />

@@ -25,6 +25,7 @@ import { SuggestedCommunities } from '@/components/SuggestedCommunities';
 import { SuggestedPeopleCard } from '@/components/SuggestedPeopleCard';
 import { Post, useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { useStories } from '@/hooks/useStories';
 import { useEffect } from 'react';
 
@@ -68,6 +69,7 @@ export default function HomeScreen() {
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
   const [showAddStory, setShowAddStory] = useState(false);
+  const { refreshing, onRefresh } = usePullToRefresh();
   const {
     stories,
     markSeen,
@@ -168,6 +170,8 @@ export default function HomeScreen() {
         renderItem={renderItem}
         ListHeaderComponent={renderHeader}
         showsVerticalScrollIndicator={false}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
         contentContainerStyle={{ paddingBottom: isWeb ? 90 : insets.bottom + 88 }}
         viewabilityConfig={viewabilityConfig.current}
         onViewableItemsChanged={onViewableItemsChanged.current}
