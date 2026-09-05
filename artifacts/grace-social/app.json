@@ -41,7 +41,8 @@
         {
           "microphonePermission": "Allow Grace Social to record audio messages."
         }
-      ]
+      ],
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,
