@@ -163,7 +163,7 @@ type Tab = 'feed' | 'members' | 'about' | 'requests';
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function CommunityDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { communities, toggleJoin, requestJoin, startOrOpenConversation, approveJoinRequest, declineJoinRequest } = useApp();
+  const { communities, toggleJoin, requestJoin, startOrOpenConversation, approveJoinRequest, declineJoinRequest, addPost } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
@@ -235,10 +235,13 @@ export default function CommunityDetailScreen() {
   const joinFg = community.isJoined || community.joinRequested ? community.color : '#fff';
 
   // ── New post handler ─────────────────────────────────────────────────────
-  const handleNewPost = useCallback((post: Omit<Post, 'id'>) => {
-    const newPost: Post = { ...post, id: `cp_${Date.now()}` };
-    setCommunityPosts((prev) => [newPost, ...prev]);
-  }, []);
+  const handleNewPost = useCallback(async (post: Omit<Post, 'id'>) => {
+    const result = await addPost(post);
+    if (result.ok) {
+      setCommunityPosts((prev) => [post as Post, ...prev]);
+    }
+    return result;
+  }, [addPost]);
 
   const pendingMembers = community?.pendingMembers ?? [];
   const pendingCount = pendingMembers.length;

@@ -19,7 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AvatarCircle } from '@/components/AvatarCircle';
 import { VersePickerModal } from '@/components/VersePickerModal';
-import { PostMediaItem, useApp } from '@/context/AppContext';
+import { ContentCreateResult, PostMediaItem, useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
 
@@ -30,7 +30,7 @@ interface Props {
   onClose: () => void;
   initialVerse?: { reference: string; text: string } | null;
   /** If provided, called instead of the global addPost — useful for scoped feeds (e.g. community) */
-  onPost?: (post: Omit<import('@/context/AppContext').Post, 'id'>) => void;
+  onPost?: (post: Omit<import('@/context/AppContext').Post, 'id'>) => Promise<ContentCreateResult>;
 }
 
 export function NewPostModal({ visible, onClose, initialVerse, onPost }: Props) {
@@ -46,6 +46,8 @@ export function NewPostModal({ visible, onClose, initialVerse, onPost }: Props) 
   const [verseText, setVerseText] = useState('');
   const [mediaItems, setMediaItems] = useState<PostMediaItem[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [pickingMedia, setPickingMedia] = useState(false);
   const [versePickerVisible, setVersePickerVisible] = useState(false);
 
@@ -123,9 +125,10 @@ export function NewPostModal({ visible, onClose, initialVerse, onPost }: Props) 
 
   const clearAllMedia = () => setMediaItems([]);
 
-  const handleShare = () => {
-    if (!canShare) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  const handleShare = async () => {
+    if (!canShare || submitting) return;
+    setSubmitting(true);
+    setSubmitError('');
 
     // Build media fields — multi-item carousel OR single legacy fields for backward compat
     const singleImage = mediaItems.length === 1 && mediaItems[0].type === 'image' ? mediaItems[0].uri : undefined;
@@ -155,12 +158,14 @@ export function NewPostModal({ visible, onClose, initialVerse, onPost }: Props) 
       timestamp: 'just now',
     } as const;
 
-    if (onPost) {
-      onPost(newPost);
-    } else {
-      addPost(newPost);
+    const result = onPost ? await onPost(newPost) : await addPost(newPost);
+    setSubmitting(false);
+    if (!result.ok) {
+      setSubmitError(result.error || 'Unable to save your post. Please try again.');
+      return;
     }
 
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setSubmitted(true);
     setTimeout(() => {
       reset();
@@ -175,6 +180,8 @@ export function NewPostModal({ visible, onClose, initialVerse, onPost }: Props) 
     setVerseText('');
     setMediaItems([]);
     setSubmitted(false);
+    setSubmitting(false);
+    setSubmitError('');
     setPickingMedia(false);
   };
 
@@ -215,13 +222,17 @@ export function NewPostModal({ visible, onClose, initialVerse, onPost }: Props) 
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>New Post</Text>
           <TouchableOpacity
-            style={[styles.shareBtn, { backgroundColor: canShare ? colors.primary : colors.muted }]}
+            style={[styles.shareBtn, { backgroundColor: canShare && !submitting ? colors.primary : colors.muted }]}
             onPress={handleShare}
-            disabled={!canShare}
+            disabled={!canShare || submitting}
           >
-            <Text style={[styles.shareBtnText, { color: canShare ? '#fff' : colors.mutedForeground }]}>
-              Share
-            </Text>
+            {submitting ? (
+              <ActivityIndicator size="small" color={colors.mutedForeground} />
+            ) : (
+              <Text style={[styles.shareBtnText, { color: canShare ? '#fff' : colors.mutedForeground }]}>
+                Share
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -241,6 +252,12 @@ export function NewPostModal({ visible, onClose, initialVerse, onPost }: Props) 
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
+            {submitError ? (
+              <View style={[styles.errorBox, { backgroundColor: '#E74C3C18', borderColor: '#E74C3C55' }]}>
+                <Feather name="alert-circle" size={16} color="#E74C3C" />
+                <Text style={styles.errorText}>{submitError}</Text>
+              </View>
+            ) : null}
             {/* Author */}
             <View style={styles.authorRow}>
               <AvatarCircle
@@ -477,6 +494,8 @@ const styles = StyleSheet.create({
   successTitle: { fontSize: 22, fontFamily: 'Inter_700Bold' },
   successSub: { fontSize: 15, fontFamily: 'Inter_400Regular', textAlign: 'center', lineHeight: 22 },
   body: { flex: 1, paddingHorizontal: 20, paddingTop: 16 },
+  errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 14 },
+  errorText: { flex: 1, color: '#B42318', fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 18 },
   authorRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
   authorInfo: { gap: 2 },
   authorName: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },

@@ -94,6 +94,37 @@ function mapPost(row: any, media: any[], userId: number | null, req?: any) {
   };
 }
 
+function mapReel(row: any, media: any[], req?: any) {
+  const video = media.find((item) => item.media_type === "video");
+  const displayName = row.display_name || row.name || row.username;
+  return {
+    id: `server-post-${row.id}`,
+    userName: displayName,
+    userHandle: `@${row.username}`,
+    userInitials: displayName
+      .split(/\s+/)
+      .map((part: string) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase(),
+    userColor: row.color || "#4A90A4",
+    avatarUrl: row.avatar_url,
+    description: row.caption,
+    bibleVerse: row.bible_text || "",
+    likes: Number(row.likes_count || 0),
+    comments: Number(row.comments_count || 0),
+    shares: Number(row.shares_count || 0),
+    views: 0,
+    isLiked: Boolean(row.is_liked),
+    isSaved: false,
+    imageIndex: Number(row.realm_category || 0),
+    videoUri: video ? mediaUrl(Number(video.media_id), req) : undefined,
+    duration: row.realm_duration || "0:15",
+    isFollowing: false,
+    audioName: row.realm_audio_name || `Original audio · @${row.username}`,
+  };
+}
+
 function parseServerId(value: string, prefix: string): number | null {
   if (!value.startsWith(prefix)) return null;
   const id = Number(value.slice(prefix.length));
@@ -167,6 +198,7 @@ router.get("/posts", async (req, res) => {
               ) AS is_liked
        FROM gs_posts p
        JOIN gs_users u ON u.id = p.user_id
+       WHERE p.is_realm = false
        ORDER BY p.created_at DESC
        LIMIT 100`,
       [userId],
@@ -219,8 +251,8 @@ router.post("/posts", async (req, res) => {
   try {
     await client.query("BEGIN");
     const postResult = await client.query(
-      `INSERT INTO gs_posts (user_id, caption, bible_reference, bible_text)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO gs_posts (user_id, caption, bible_reference, bible_text, is_realm)
+       VALUES ($1, $2, $3, $4, false)
        RETURNING id`,
       [
         userId,
@@ -268,6 +300,139 @@ router.post("/posts", async (req, res) => {
     await client.query("ROLLBACK");
     req.log?.error(error);
     res.status(400).json({ error: error.message || "Unable to create post." });
+  } finally {
+    client.release();
+  }
+});
+
+router.get("/realms", async (req, res) => {
+  const userId = optionalAuth(req);
+  try {
+    const realms = await pool.query(
+      `SELECT p.*, u.name, u.display_name, u.username, u.color, u.avatar_url,
+              EXISTS(
+                SELECT 1 FROM gs_post_likes pl
+                WHERE pl.post_id = p.id AND pl.user_id = $1
+              ) AS is_liked
+       FROM gs_posts p
+       JOIN gs_users u ON u.id = p.user_id
+       WHERE p.is_realm = true
+       ORDER BY p.created_at DESC
+       LIMIT 100`,
+      [userId],
+    );
+    const media = await pool.query(
+      `SELECT pm.post_id, pm.media_id, pm.media_type
+       FROM gs_post_media pm
+       JOIN gs_posts p ON p.id = pm.post_id
+       WHERE p.is_realm = true
+       ORDER BY pm.position ASC`,
+    );
+    const mediaByPost = new Map<number, any[]>();
+    for (const item of media.rows) {
+      const list = mediaByPost.get(Number(item.post_id)) || [];
+      list.push(item);
+      mediaByPost.set(Number(item.post_id), list);
+    }
+    res.json({
+      reels: realms.rows.map((row: any) =>
+        mapReel(row, mediaByPost.get(Number(row.id)) || [], req),
+      ),
+    });
+  } catch (error) {
+    req.log?.error(error);
+    res.status(500).json({ error: "Unable to load Realms." });
+  }
+});
+
+router.post("/realms", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const {
+    description,
+    bibleVerse,
+    mediaId,
+    category = 0,
+    duration = "0:15",
+    audioName,
+  } = req.body || {};
+  const parsedMediaId = Number(mediaId);
+  const parsedCategory = Number(category);
+
+  if (typeof description !== "string" || !description.trim()) {
+    res.status(400).json({ error: "A description is required." });
+    return;
+  }
+  if (
+    !Number.isInteger(parsedMediaId) ||
+    parsedMediaId < 1 ||
+    !Number.isInteger(parsedCategory) ||
+    parsedCategory < 0 ||
+    parsedCategory > 4
+  ) {
+    res.status(400).json({ error: "A valid Realm video and category are required." });
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    const mediaExists = await client.query(
+      `SELECT id FROM gs_media
+       WHERE id = $1 AND owner_id = $2 AND content_type LIKE 'video/%'`,
+      [parsedMediaId, userId],
+    );
+    if (!mediaExists.rows[0]) {
+      throw new Error("The Realm video is not available.");
+    }
+
+    const realmResult = await client.query(
+      `INSERT INTO gs_posts
+         (user_id, caption, bible_text, is_realm, realm_category, realm_duration, realm_audio_name)
+       VALUES ($1, $2, $3, true, $4, $5, $6)
+       RETURNING id`,
+      [
+        userId,
+        description.trim(),
+        typeof bibleVerse === "string" && bibleVerse.trim()
+          ? bibleVerse.trim()
+          : null,
+        parsedCategory,
+        typeof duration === "string" && duration.trim() ? duration.trim() : "0:15",
+        typeof audioName === "string" && audioName.trim() ? audioName.trim() : null,
+      ],
+    );
+    const realmId = Number(realmResult.rows[0].id);
+    await client.query(
+      "INSERT INTO gs_post_media (post_id, media_id, media_type, position) VALUES ($1, $2, 'video', 0)",
+      [realmId, parsedMediaId],
+    );
+    await client.query(
+      "UPDATE gs_users SET posts_count = posts_count + 1 WHERE id = $1",
+      [userId],
+    );
+    await client.query("COMMIT");
+
+    const result = await pool.query(
+      `SELECT p.*, u.name, u.display_name, u.username, u.color, u.avatar_url,
+              false AS is_liked
+       FROM gs_posts p
+       JOIN gs_users u ON u.id = p.user_id
+       WHERE p.id = $1`,
+      [realmId],
+    );
+    const realmMedia = await pool.query(
+      `SELECT media_id, media_type FROM gs_post_media
+       WHERE post_id = $1 ORDER BY position ASC`,
+      [realmId],
+    );
+    res.status(201).json({
+      reel: mapReel(result.rows[0], realmMedia.rows, req),
+    });
+  } catch (error: any) {
+    await client.query("ROLLBACK");
+    req.log?.error(error);
+    res.status(400).json({ error: error.message || "Unable to create Realm." });
   } finally {
     client.release();
   }

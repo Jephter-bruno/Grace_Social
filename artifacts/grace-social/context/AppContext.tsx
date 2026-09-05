@@ -88,6 +88,11 @@ export interface Reel {
   audioName: string;
 }
 
+export interface ContentCreateResult {
+  ok: boolean;
+  error?: string;
+}
+
 export interface PendingMember {
   id: string;
   name: string;
@@ -224,8 +229,8 @@ interface AppContextType {
   incrementPostShares: (postId: string) => void;
   resharePost: (postId: string, resharer: { userName: string; userHandle: string; userInitials: string; userColor: string }) => void;
   addPrayer: (prayer: Omit<Prayer, 'id'>) => void;
-  addPost: (post: Omit<Post, 'id'>) => void;
-  addReel: (reel: Omit<Reel, 'id'>) => void;
+  addPost: (post: Omit<Post, 'id'>) => Promise<ContentCreateResult>;
+  addReel: (reel: Omit<Reel, 'id'>) => Promise<ContentCreateResult>;
   addComment: (postId: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => void;
   addPrayerComment: (prayerId: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => void;
   toggleCommentLike: (postId: string, commentId: string) => void;
@@ -556,14 +561,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   useEffect(() => {
-    if (!authToken) return;
-    void socialRequest<{ posts?: Post[] }>('/posts', { token: authToken }).then((result) => {
-      if (!result.ok || !Array.isArray(result.data.posts)) return;
-      setPosts((prev) => [
-        ...result.data.posts!,
-        ...prev.filter((post) => !post.id.startsWith('server-post-')),
-      ]);
+    if (!authToken) {
+      setPosts(INITIAL_POSTS);
+      setReels(INITIAL_REELS);
+      return;
+    }
+
+    let cancelled = false;
+    void Promise.all([
+      socialRequest<{ posts?: Post[] }>('/posts', { token: authToken }),
+      socialRequest<{ reels?: Reel[] }>('/realms', { token: authToken }),
+    ]).then(([postsResult, reelsResult]) => {
+      if (cancelled) return;
+      setPosts(postsResult.ok && Array.isArray(postsResult.data.posts) ? postsResult.data.posts : []);
+      setReels(reelsResult.ok && Array.isArray(reelsResult.data.reels) ? reelsResult.data.reels : []);
     });
+    return () => {
+      cancelled = true;
+    };
   }, [authToken]);
 
   const toggleLike = useCallback((postId: string) => {
@@ -575,15 +590,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const toggleSave = useCallback((postId: string) => {
     setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, isSaved: !p.isSaved } : p)));
-  }, []);
+  }, [authToken]);
 
   const togglePray = useCallback((prayerId: string) => {
     setPrayers((prev) => prev.map((p) => p.id === prayerId ? { ...p, isPraying: !p.isPraying, prayerCount: p.isPraying ? p.prayerCount - 1 : p.prayerCount + 1 } : p));
-  }, []);
+  }, [authToken]);
 
   const toggleReelLike = useCallback((reelId: string) => {
     setReels((prev) => prev.map((r) => r.id === reelId ? { ...r, isLiked: !r.isLiked, likes: r.isLiked ? r.likes - 1 : r.likes + 1 } : r));
-  }, []);
+    if (authToken && reelId.startsWith('server-post-')) {
+      void socialRequest<{ isLiked?: boolean; likes?: number }>(`/posts/${reelId}/like`, {
+        method: 'POST',
+        token: authToken,
+      }).then((result) => {
+        if (!result.ok) return;
+        setReels((prev) => prev.map((r) => r.id === reelId ? {
+          ...r,
+          isLiked: Boolean(result.data.isLiked),
+          likes: Number(result.data.likes ?? r.likes),
+        } : r));
+      });
+    }
+  }, [authToken]);
 
   const toggleReelSave = useCallback((reelId: string) => {
     setReels((prev) => prev.map((r) => r.id === reelId ? { ...r, isSaved: !r.isSaved } : r));
@@ -591,7 +619,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const incrementReelShares = useCallback((reelId: string) => {
     setReels((prev) => prev.map((r) => r.id === reelId ? { ...r, shares: r.shares + 1 } : r));
-  }, []);
+    if (authToken && reelId.startsWith('server-post-')) {
+      void socialRequest<{ shares?: number }>(`/posts/${reelId}/share`, {
+        method: 'POST',
+        token: authToken,
+      }).then((result) => {
+        if (!result.ok) return;
+        setReels((prev) => prev.map((r) => r.id === reelId ? {
+          ...r,
+          shares: Number(result.data.shares ?? r.shares),
+        } : r));
+      });
+    }
+  }, [authToken]);
 
   const incrementPostShares = useCallback((postId: string) => {
     setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, shares: p.shares + 1 } : p));
@@ -706,41 +746,64 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPrayers((prev) => [newPrayer, ...prev]);
   }, []);
 
-  const addPost = useCallback((post: Omit<Post, 'id'>) => {
-    const localId = `pending-post-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const newPost: Post = { ...post, id: localId };
-    setPosts((prev) => [newPost, ...prev]);
-    if (!authToken) return;
+  const addPost = useCallback(async (post: Omit<Post, 'id'>): Promise<ContentCreateResult> => {
+    if (!authToken) return { ok: false, error: 'You must be signed in to share a post.' };
 
-    void (async () => {
-      const sourceItems = post.mediaItems ?? [
-        ...(post.localImageUri ? [{ uri: post.localImageUri, type: 'image' as const }] : []),
-        ...(post.videoUri ? [{ uri: post.videoUri, type: 'video' as const }] : []),
-      ];
-      const uploadedItems: { mediaId: number; type: 'image' | 'video' }[] = [];
-      for (const item of sourceItems) {
-        const uploaded = await uploadSocialMedia(item.uri, item.type, authToken);
-        if (!uploaded.ok || !uploaded.id) return;
-        uploadedItems.push({ mediaId: uploaded.id, type: item.type });
+    const sourceItems = post.mediaItems ?? [
+      ...(post.localImageUri ? [{ uri: post.localImageUri, type: 'image' as const }] : []),
+      ...(post.videoUri ? [{ uri: post.videoUri, type: 'video' as const }] : []),
+    ];
+    const uploadedItems: { mediaId: number; type: 'image' | 'video' }[] = [];
+    for (const item of sourceItems) {
+      const uploaded = await uploadSocialMedia(item.uri, item.type, authToken);
+      if (!uploaded.ok || !uploaded.id) {
+        return { ok: false, error: uploaded.error || 'Unable to upload the post media.' };
       }
-      const result = await socialRequest<{ post?: Post }>('/posts', {
-        method: 'POST',
-        token: authToken,
-        body: {
-          caption: post.caption,
-          bibleVerse: post.bibleVerse,
-          mediaItems: uploadedItems,
-        },
-      });
-      if (result.ok && result.data.post) {
-        setPosts((prev) => [result.data.post!, ...prev.filter((item) => item.id !== localId)]);
-      }
-    })();
+      uploadedItems.push({ mediaId: uploaded.id, type: item.type });
+    }
+
+    const result = await socialRequest<{ post?: Post; error?: string }>('/posts', {
+      method: 'POST',
+      token: authToken,
+      body: {
+        caption: post.caption,
+        bibleVerse: post.bibleVerse,
+        mediaItems: uploadedItems,
+      },
+    });
+    if (!result.ok || !result.data.post) {
+      return { ok: false, error: result.data.error || 'Unable to save the post.' };
+    }
+    setPosts((prev) => [result.data.post!, ...prev.filter((item) => item.id !== result.data.post!.id)]);
+    return { ok: true };
   }, [authToken]);
 
-  const addReel = useCallback((reel: Omit<Reel, 'id'>) => {
-    const newReel: Reel = { ...reel, id: Date.now().toString() + Math.random().toString(36).substr(2, 9) };
-    setReels((prev) => [newReel, ...prev]);
+  const addReel = useCallback(async (reel: Omit<Reel, 'id'>): Promise<ContentCreateResult> => {
+    if (!authToken) return { ok: false, error: 'You must be signed in to post a Realm.' };
+    if (!reel.videoUri) return { ok: false, error: 'Choose a video before posting.' };
+
+    const uploaded = await uploadSocialMedia(reel.videoUri, 'video', authToken);
+    if (!uploaded.ok || !uploaded.id) {
+      return { ok: false, error: uploaded.error || 'Unable to upload the Realm video.' };
+    }
+
+    const result = await socialRequest<{ reel?: Reel; error?: string }>('/realms', {
+      method: 'POST',
+      token: authToken,
+      body: {
+        description: reel.description,
+        bibleVerse: reel.bibleVerse,
+        mediaId: uploaded.id,
+        category: reel.imageIndex,
+        duration: reel.duration,
+        audioName: reel.audioName,
+      },
+    });
+    if (!result.ok || !result.data.reel) {
+      return { ok: false, error: result.data.error || 'Unable to save the Realm.' };
+    }
+    setReels((prev) => [result.data.reel!, ...prev.filter((item) => item.id !== result.data.reel!.id)]);
+    return { ok: true };
   }, []);
 
   const addComment = useCallback((postId: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => {

@@ -63,6 +63,7 @@ export function NewReelModal({ visible, onClose }: Props) {
   const [verseText, setVerseText] = useState('');
   const [isPickingLibrary, setIsPickingLibrary] = useState(false);
   const [isPickingCamera, setIsPickingCamera] = useState(false);
+  const [publishError, setPublishError] = useState('');
   const [uploadProgress] = useState(new Animated.Value(0));
 
   const reset = useCallback(() => {
@@ -76,6 +77,7 @@ export function NewReelModal({ visible, onClose }: Props) {
     setVerseText('');
     setIsPickingLibrary(false);
     setIsPickingCamera(false);
+    setPublishError('');
     uploadProgress.setValue(0);
   }, [uploadProgress]);
 
@@ -149,16 +151,12 @@ export function NewReelModal({ visible, onClose }: Props) {
 
   const runPublish = useCallback(() => {
     if (!canPost) return;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    setPublishError('');
     setStep('publishing');
     uploadProgress.setValue(0);
 
-    Animated.timing(uploadProgress, {
-      toValue: 1,
-      duration: 2000,
-      useNativeDriver: false,
-    }).start(() => {
-      addReel({
+    const publish = async () => {
+      const result = await addReel({
         userName:     currentUser?.displayName || currentUser?.name || 'You',
         userHandle:   currentUser?.handle || '@gracemember',
         userInitials: currentUser?.initials || 'ME',
@@ -177,9 +175,21 @@ export function NewReelModal({ visible, onClose }: Props) {
         isFollowing:  false,
         audioName:    `Original audio · ${currentUser?.handle || '@gracemember'}`,
       });
+      if (!result.ok) {
+        setPublishError(result.error || 'Unable to save the Realm. Please try again.');
+        setStep('details');
+        return;
+      }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       setStep('success');
       setTimeout(() => { reset(); onClose(); }, 2000);
-    });
+    };
+
+    Animated.timing(uploadProgress, {
+      toValue: 1,
+      duration: 2000,
+      useNativeDriver: false,
+    }).start(() => { void publish(); });
   }, [canPost, addReel, currentUser, description, verseEnabled, verseRef, verseText,
       selectedCategory, videoUri, videoDuration, uploadProgress, reset, onClose]);
 
@@ -344,6 +354,12 @@ export function NewReelModal({ visible, onClose }: Props) {
 
             {/* Author row */}
             <View style={[styles.detailsBody]}>
+              {publishError ? (
+                <View style={[styles.errorBox, { backgroundColor: '#E74C3C18', borderColor: '#E74C3C55' }]}>
+                  <Feather name="alert-circle" size={16} color="#E74C3C" />
+                  <Text style={styles.errorText}>{publishError}</Text>
+                </View>
+              ) : null}
               <View style={styles.authorRow}>
                 <AvatarCircle
                   initials={currentUser?.initials || 'ME'}
@@ -543,6 +559,8 @@ const styles = StyleSheet.create({
   changeVideoBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 8, borderWidth: 1, paddingHorizontal: 10, paddingVertical: 7, alignSelf: 'flex-start' },
   changeVideoText: { fontSize: 12, fontFamily: 'Inter_500Medium' },
   detailsBody: { paddingHorizontal: 16, paddingTop: 8, gap: 0 },
+  errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 14 },
+  errorText: { flex: 1, color: '#B42318', fontSize: 13, fontFamily: 'Inter_500Medium', lineHeight: 18 },
   authorRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
   authorInfo: { gap: 2 },
   authorName: { fontSize: 15, fontFamily: 'Inter_700Bold' },
