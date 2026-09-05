@@ -3,18 +3,18 @@ name: Grace Social Workflow Setup
 description: How to configure and run the two required workflows for Grace Social in Replit.
 ---
 
-The Expo Metro dev script uses `--port 5000` hardcoded (not `$PORT`, which is unset in Replit workflow runner). Workflow must use `waitForPort: 5000, outputType: "webview"`.
+The Expo Metro dev script uses `--port ${PORT:-5000}`. The primary workflow falls back to port 5000, while the managed artifact workflow supplies port 18396 through its service environment.
 
 The API server must be started as: `PORT=3000 pnpm --filter @workspace/api-server run dev` with `waitForPort: 3000, outputType: "console"`.
 
-**Why:** Replit workflow runner does not expand `$PORT` in pnpm script env vars; using `$PORT` causes Expo start to fail with "option requires argument: --port". Port 5000 is the Replit webview port.
+**Why:** The primary Replit webview needs port 5000, while the artifact service has its own configured port. A defaulted shell expression avoids the empty-port failure and prevents the two Expo processes from colliding.
 
-**How to apply:** Any time the Grace Social workflow is re-created, always hardcode `--port 5000` in the package.json dev script (not $PORT). API server always runs on port 3000.
+**How to apply:** Keep `${PORT:-5000}` in the package.json dev script. The primary workflow uses its 5000 fallback; the artifact service should retain its configured 18396 environment. API server always runs on port 3000.
 
 API URL for the browser: `EXPO_PUBLIC_API_URL=https://$REPLIT_DEV_DOMAIN/api` is set in the Grace Social dev script. The API is mounted at the main domain's `/api` path; the `3000-` prefix is not routed correctly.
 
-If both the primary Grace Social workflow and the artifact Expo workflow run together, they compete for port 5000 and the preview can land on a fallback port. Keep only the primary Expo workflow running for the user-facing preview.
+Both the primary Grace Social workflow and the managed artifact Expo workflow may run together when they use their configured ports. The primary log should say `Web is waiting on http://localhost:5000`, and the artifact service should use 18396.
 
-**Why:** Replit can expose both generated artifact workflows and the named product workflow; two identical Expo servers make the webview look blank even though Metro is healthy.
+**Why:** Replit exposes both the named product workflow and the artifact service; forcing both to port 5000 creates an `EADDRINUSE` failure.
 
-**How to apply:** When validating the preview, confirm the primary workflow log says `Web is waiting on http://localhost:5000` and stop the duplicate artifact Expo workflow if it has claimed that port.
+**How to apply:** Validate that the two Expo processes bind to 5000 and 18396 respectively, rather than stopping the managed artifact workflow.
