@@ -18,3 +18,9 @@ Both the primary Grace Social workflow and the managed artifact Expo workflow ma
 **Why:** Replit exposes both the named product workflow and the artifact service; forcing both to port 5000 creates an `EADDRINUSE` failure.
 
 **How to apply:** Validate that the two Expo processes bind to 5000 and 18396 respectively, rather than stopping the managed artifact workflow.
+
+When the lockfile or artifact manifests change, existing workspace links can remain on an older Expo/API dependency tree. Reinstall with a frozen lockfile scoped to the affected workspace, then restart the workflow that builds the server bundle; otherwise new route imports may not be present at runtime.
+
+**Why:** A stale install hid `expo-audio`, omitted `multer`, and left the API serving a pre-social-router bundle even though the source mount was already updated.
+
+**How to apply:** After dependency or route-mount changes, verify the resolved package from the artifact path, rebuild/restart the relevant workflow, and smoke-test the actual proxied endpoint rather than relying only on source inspection.

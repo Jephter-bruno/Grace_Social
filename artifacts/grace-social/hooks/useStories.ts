@@ -58,6 +58,11 @@ export interface AddStoryPayload {
   mediaType?: 'image' | 'video';
 }
 
+export interface AddStoryResult {
+  ok: boolean;
+  error?: string;
+}
+
 const MOCK_STORIES: Omit<Story, 'seen'>[] = [
   {
     id: 'story-grace',
@@ -216,12 +221,14 @@ export function useStories() {
     }
   }, [authToken, refreshStories]);
 
-  const addOwnStory = useCallback(async (payload: AddStoryPayload) => {
-    if (!authToken) return;
+  const addOwnStory = useCallback(async (payload: AddStoryPayload): Promise<AddStoryResult> => {
+    if (!authToken) return { ok: false, error: 'Please sign in before sharing a story.' };
     let mediaId: number | undefined;
     if (payload.mediaUri && payload.mediaType) {
       const upload = await uploadSocialMedia(payload.mediaUri, payload.mediaType, authToken);
-      if (!upload.ok || !upload.id) return;
+      if (!upload.ok || !upload.id) {
+        return { ok: false, error: upload.error || 'Unable to upload the selected media.' };
+      }
       mediaId = upload.id;
     }
     const result = await socialRequest('/stories', {
@@ -235,7 +242,14 @@ export function useStories() {
         mediaType: payload.mediaType,
       },
     });
-    if (result.ok) await refreshStories();
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: (result.data as { error?: string })?.error || 'Unable to save your story.',
+      };
+    }
+    await refreshStories();
+    return { ok: true };
   }, [authToken, refreshStories]);
 
   const deleteOwnStory = useCallback(() => {

@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useState, useRef } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Dimensions,
   Image,
@@ -18,7 +19,7 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { AddStoryPayload, StoryScripture } from '@/hooks/useStories';
+import { AddStoryPayload, AddStoryResult, StoryScripture } from '@/hooks/useStories';
 import { useColors } from '@/hooks/useColors';
 
 const { width: W, height: H } = Dimensions.get('window');
@@ -57,7 +58,7 @@ type StoryMode = 'text' | 'image' | 'video';
 interface Props {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (payload: AddStoryPayload) => void;
+  onSubmit: (payload: AddStoryPayload) => Promise<AddStoryResult>;
 }
 
 export function AddStorySheet({ visible, onClose, onSubmit }: Props) {
@@ -71,6 +72,8 @@ export function AddStorySheet({ visible, onClose, onSubmit }: Props) {
   const [selectedScripture, setSelectedScripture] = useState<StoryScripture | null>(null);
   const [showScripturePicker, setShowScripturePicker] = useState(false);
   const [scriptureSearch, setScriptureSearch] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const videoPlayer = useVideoPlayer(
     mode === 'video' && mediaUri ? { uri: mediaUri } : null,
     (player) => {
@@ -95,6 +98,8 @@ export function AddStorySheet({ visible, onClose, onSubmit }: Props) {
     setSelectedScripture(null);
     setShowScripturePicker(false);
     setScriptureSearch('');
+    setSubmitting(false);
+    setSubmitError(null);
   };
 
   const handleClose = () => { reset(); onClose(); };
@@ -103,31 +108,37 @@ export function AddStorySheet({ visible, onClose, onSubmit }: Props) {
     mode === 'text' ? caption.trim().length > 0 : mediaUri !== null;
 
   const pickMedia = async (type: 'image' | 'video') => {
-    if (isWeb) {
-      Alert.alert('Not supported', 'Media picking is only supported on mobile.');
-      return;
+    if (!isWeb) {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Please allow access to your photo library in settings.');
+        return;
+      }
     }
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow access to your photo library in settings.');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: type === 'image'
-        ? ImagePicker.MediaTypeOptions.Images
-        : ImagePicker.MediaTypeOptions.Videos,
-      allowsEditing: true,
-      aspect: [9, 16],
-      quality: 0.85,
-      videoMaxDuration: 30,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setMediaUri(result.assets[0].uri);
-      setMode(type);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: type === 'image'
+          ? ImagePicker.MediaTypeOptions.Images
+          : ImagePicker.MediaTypeOptions.Videos,
+        allowsEditing: true,
+        aspect: [9, 16],
+        quality: 0.85,
+        videoMaxDuration: 30,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setMediaUri(result.assets[0].uri);
+        setMode(type);
+        setSubmitError(null);
+      }
+    } catch {
+      setSubmitError('The media picker could not open. Please try again.');
     }
   };
 
-  const handleShare = () => {
+  const handleShare = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
     const payload: AddStoryPayload = {
       text: caption.trim() || undefined,
       gradient: GRADIENTS[gradientIdx],
@@ -135,7 +146,12 @@ export function AddStorySheet({ visible, onClose, onSubmit }: Props) {
       mediaUri: mediaUri ?? undefined,
       mediaType: mode !== 'text' ? mode : undefined,
     };
-    onSubmit(payload);
+    const result = await onSubmit(payload);
+    setSubmitting(false);
+    if (!result.ok) {
+      setSubmitError(result.error || 'Unable to save your story. Please try again.');
+      return;
+    }
     reset();
     onClose();
   };
@@ -226,14 +242,27 @@ export function AddStorySheet({ visible, onClose, onSubmit }: Props) {
             </TouchableOpacity>
             <Text style={styles.topTitle}>Add to Story</Text>
             <TouchableOpacity
-              style={[styles.shareBtn, !canShare && { opacity: 0.35 }]}
+                style={[styles.shareBtn, (!canShare || submitting) && { opacity: 0.35 }]}
               onPress={handleShare}
-              disabled={!canShare}
+                disabled={!canShare || submitting}
             >
-              <Text style={styles.shareBtnText}>Share</Text>
-              <Feather name="arrow-right" size={16} color="#fff" />
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Text style={styles.shareBtnText}>Share</Text>
+                    <Feather name="arrow-right" size={16} color="#fff" />
+                  </>
+                )}
             </TouchableOpacity>
           </View>
+
+            {submitError && (
+              <View style={styles.errorBanner}>
+                <Feather name="alert-circle" size={16} color="#FFB4A2" />
+                <Text style={styles.errorText}>{submitError}</Text>
+              </View>
+            )}
 
           {/* ── Preview area ── */}
           <View style={[styles.preview, { height: PREVIEW_H }]}>
@@ -419,6 +448,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 14,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: 'rgba(180, 55, 40, 0.28)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 180, 162, 0.4)',
+  },
+  errorText: {
+    flex: 1,
+    color: '#FFB4A2',
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    lineHeight: 17,
   },
   shareBtn: {
     flexDirection: 'row',
