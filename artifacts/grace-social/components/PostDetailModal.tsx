@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -71,6 +71,7 @@ export function PostDetailModal({ visible, post, onClose }: PostDetailModalProps
   const { currentUser } = useAuth();
   const {
     commentsByPost,
+    loadPostComments,
     toggleLike,
     toggleSave,
     toggleCommentLike,
@@ -81,6 +82,12 @@ export function PostDetailModal({ visible, post, onClose }: PostDetailModalProps
   const [text, setText] = useState('');
   const [fullScreen, setFullScreen] = useState(false);
   const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (visible && post) {
+      void loadPostComments(post.id);
+    }
+  }, [visible, post, loadPostComments]);
 
   const likeScale = useSharedValue(1);
   const likeAnimStyle = useAnimatedStyle(() => ({ transform: [{ scale: likeScale.value }] }));

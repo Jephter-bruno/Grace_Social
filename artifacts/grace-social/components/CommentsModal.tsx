@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -70,11 +70,17 @@ export function CommentsModal({ visible, entityId, entityType, title, imageIndex
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { currentUser } = useAuth();
-  const { commentsByPost, prayerCommentsByPrayer, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike } = useApp();
+  const { commentsByPost, prayerCommentsByPrayer, addComment, addPrayerComment, loadPostComments, toggleCommentLike, togglePrayerCommentLike } = useApp();
   const [text, setText] = useState('');
   const [fullScreen, setFullScreen] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const isWeb = Platform.OS === 'web';
+
+  useEffect(() => {
+    if (visible && entityType === 'post') {
+      void loadPostComments(entityId);
+    }
+  }, [visible, entityId, entityType, loadPostComments]);
 
   const comments = entityType === 'post'
     ? (commentsByPost[entityId] ?? [])

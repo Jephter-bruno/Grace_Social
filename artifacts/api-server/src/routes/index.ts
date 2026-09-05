@@ -4,6 +4,7 @@ import authRouter from "./auth";
 import followsRouter from "./follows";
 import testimoniesRouter from "./testimonies";
 import socialRouter from "./social";
+import messagesRouter from "./messages";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(authRouter);
 router.use(followsRouter);
 router.use(testimoniesRouter);
 router.use(socialRouter);
+router.use(messagesRouter);
 
 export default router;

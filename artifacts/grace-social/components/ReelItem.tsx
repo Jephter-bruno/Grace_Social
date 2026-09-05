@@ -51,7 +51,7 @@ interface ReelItemProps {
 
 export function ReelItem({ reel, isActive }: ReelItemProps) {
   const insets = useSafeAreaInsets();
-  const { toggleReelLike, toggleReelSave, toggleFollow, isFollowingUser, incrementReelShares } = useApp();
+  const { recordPostView, toggleReelLike, toggleReelSave, toggleFollow, isFollowingUser, incrementReelShares } = useApp();
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [commentsVisible, setCommentsVisible] = useState(false);
@@ -65,6 +65,10 @@ export function ReelItem({ reel, isActive }: ReelItemProps) {
   const isWeb = Platform.OS === 'web';
   const bottomPad = isWeb ? 84 : 60 + insets.bottom;
   const isPlaying = isActive && !isPaused;
+
+  useEffect(() => {
+    if (isActive) recordPostView(reel.id);
+  }, [isActive, reel.id, recordPostView]);
 
   const progress = useSharedValue(0);
   const heartScale = useSharedValue(0);

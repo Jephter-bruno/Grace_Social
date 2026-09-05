@@ -29,6 +29,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Conversation, DMMessage, useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
+import { uploadSocialMedia } from '@/lib/socialApi';
 
 // ─── Local type alias (DMMessage re-exported as Message for ConversationView) ─
 type Message = DMMessage;
@@ -251,6 +252,8 @@ function ConversationView({ conv, onBack }: { conv: Conversation; onBack: () => 
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [recDuration, setRecDuration] = useState(0);
+  const { sendDirectMessage } = useApp();
+  const { authToken } = useAuth();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const listRef = useRef<FlatList>(null);
@@ -258,17 +261,18 @@ function ConversationView({ conv, onBack }: { conv: Conversation; onBack: () => 
   const scrollToEnd = (animated = true) =>
     setTimeout(() => listRef.current?.scrollToEnd({ animated }), 80);
 
-  const appendMessage = (msg: Message) => {
-    setMessages((prev) => [...prev, msg]);
+  const appendMessage = async (msg: Message) => {
+    const persisted = await sendDirectMessage(conv.id, msg);
+    setMessages((prev) => [...prev, persisted ?? msg]);
     scrollToEnd();
   };
 
   // ── Send text ──
-  const sendText = () => {
+  const sendText = async () => {
     const t = text.trim();
     if (!t) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    appendMessage({ id: Date.now().toString(), text: t, fromMe: true, time: 'Now' });
+    await appendMessage({ id: Date.now().toString(), text: t, fromMe: true, time: 'Now' });
     setText('');
   };
 
@@ -287,13 +291,21 @@ function ConversationView({ conv, onBack }: { conv: Conversation; onBack: () => 
       });
       if (!result.canceled && result.assets.length > 0) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        appendMessage({
+        const uploaded = authToken
+          ? await uploadSocialMedia(result.assets[0].uri, 'image', authToken)
+          : null;
+        if (authToken && (!uploaded?.ok || !uploaded.id)) {
+          Alert.alert('Upload error', uploaded?.error || 'Could not upload image.');
+          return;
+        }
+        await appendMessage({
           id: Date.now().toString(),
           text: '',
           fromMe: true,
           time: 'Now',
           mediaType: 'image',
-          mediaUri: result.assets[0].uri,
+          mediaId: uploaded?.id,
+          mediaUri: uploaded?.url ?? result.assets[0].uri,
         });
       }
     } catch (e) {
@@ -318,14 +330,21 @@ function ConversationView({ conv, onBack }: { conv: Conversation; onBack: () => 
       if (!result.canceled && result.assets.length > 0) {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         const asset = result.assets[0];
-        appendMessage({
+        const uploaded = authToken
+          ? await uploadSocialMedia(asset.uri, 'video', authToken)
+          : null;
+        if (authToken && (!uploaded?.ok || !uploaded.id)) {
+          Alert.alert('Upload error', uploaded?.error || 'Could not upload video.');
+          return;
+        }
+        await appendMessage({
           id: Date.now().toString(),
           text: '',
           fromMe: true,
           time: 'Now',
           mediaType: 'video',
-          // use thumbnail if available, else the uri itself as fallback image
-          mediaUri: (asset as any).thumbnail ?? asset.uri,
+          mediaId: uploaded?.id,
+          mediaUri: uploaded?.url ?? (asset as any).thumbnail ?? asset.uri,
         });
       }
     } catch (e) {
@@ -364,13 +383,21 @@ function ConversationView({ conv, onBack }: { conv: Conversation; onBack: () => 
       setRecDuration(0);
       if (uri && duration > 0) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        appendMessage({
+        const uploaded = authToken
+          ? await uploadSocialMedia(uri, 'audio', authToken)
+          : null;
+        if (authToken && (!uploaded?.ok || !uploaded.id)) {
+          Alert.alert('Upload error', uploaded?.error || 'Could not upload recording.');
+          return;
+        }
+        await appendMessage({
           id: Date.now().toString(),
           text: '',
           fromMe: true,
           time: 'Now',
           mediaType: 'audio',
-          mediaUri: uri,
+          mediaId: uploaded?.id,
+          mediaUri: uploaded?.url ?? uri,
           audioDuration: duration,
         });
       }

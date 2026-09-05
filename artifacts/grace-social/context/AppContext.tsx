@@ -27,6 +27,7 @@ export interface Post {
   likes: number;
   comments: number;
   shares: number;
+  views?: number;
   reposts: number;
   isLiked: boolean;
   isSaved: boolean;
@@ -174,6 +175,7 @@ export interface DMMessage {
   text: string;
   fromMe: boolean;
   time: string;
+  mediaId?: number;
   replyTo?: string;
   mediaType?: DMMediaType;
   mediaUri?: string;
@@ -216,6 +218,7 @@ interface AppContextType {
   deleteNotification: (id: string) => void;
   deleteAllNotifications: () => void;
   toggleLike: (postId: string) => void;
+  recordPostView: (postId: string) => void;
   toggleSave: (postId: string) => void;
   togglePray: (prayerId: string) => void;
   toggleFollow: (handle: string) => void;
@@ -232,6 +235,7 @@ interface AppContextType {
   addPost: (post: Omit<Post, 'id'>) => Promise<ContentCreateResult>;
   addReel: (reel: Omit<Reel, 'id'>) => Promise<ContentCreateResult>;
   addComment: (postId: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => void;
+  loadPostComments: (postId: string) => Promise<void>;
   addPrayerComment: (prayerId: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => void;
   toggleCommentLike: (postId: string, commentId: string) => void;
   togglePrayerCommentLike: (prayerId: string, commentId: string) => void;
@@ -240,6 +244,7 @@ interface AppContextType {
   startOrOpenConversation: (member: { id: string; name: string; initials: string; color: string }) => string;
   markConversationRead: (convId: string) => void;
   addConversation: (conv: Omit<Conversation, 'id' | 'messages'>) => string;
+  sendDirectMessage: (conversationId: string, message: DMMessage) => Promise<DMMessage | null>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -584,8 +589,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const toggleLike = useCallback((postId: string) => {
     setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, isLiked: !p.isLiked, likes: p.isLiked ? p.likes - 1 : p.likes + 1 } : p));
     if (authToken && postId.startsWith('server-post-')) {
-      void socialRequest(`/posts/${postId}/like`, { method: 'POST', token: authToken });
+      void socialRequest<{ isLiked?: boolean; likes?: number }>(`/posts/${postId}/like`, { method: 'POST', token: authToken })
+        .then((result) => {
+          if (!result.ok) return;
+          setPosts((prev) => prev.map((p) => p.id === postId ? {
+            ...p,
+            isLiked: Boolean(result.data.isLiked),
+            likes: Number(result.data.likes ?? p.likes),
+          } : p));
+        });
     }
+  }, [authToken]);
+
+  const recordPostView = useCallback((postId: string) => {
+    if (!authToken || !postId.startsWith('server-post-')) return;
+    void socialRequest<{ views?: number }>(`/posts/${postId}/view`, {
+      method: 'POST',
+      token: authToken,
+    }).then((result) => {
+      if (!result.ok) return;
+      const views = Number(result.data.views ?? 0);
+      setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, views } : p));
+      setReels((prev) => prev.map((r) => r.id === postId ? { ...r, views } : r));
+    });
   }, [authToken]);
 
   const toggleSave = useCallback((postId: string) => {
@@ -829,6 +855,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [authToken]);
 
+  const loadPostComments = useCallback(async (postId: string) => {
+    if (!authToken || !postId.startsWith('server-post-')) return;
+    const result = await socialRequest<{ comments?: Comment[] }>(`/posts/${postId}/comments`, {
+      token: authToken,
+    });
+    if (result.ok && Array.isArray(result.data.comments)) {
+      setCommentsByPost((prev) => ({ ...prev, [postId]: result.data.comments! }));
+    }
+  }, [authToken]);
+
   const addPrayerComment = useCallback((prayerId: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => {
     const newComment: Comment = { id: Date.now().toString() + Math.random().toString(36).substr(2, 9), postId: prayerId, userName: user?.userName ?? 'You', userInitials: user?.userInitials ?? 'ME', userColor: user?.userColor ?? '#4A90A4', text, timestamp: 'just now', likes: 0, isLiked: false };
     setPrayerCommentsByPrayer((prev) => ({ ...prev, [prayerId]: [newComment, ...(prev[prayerId] ?? [])] }));
@@ -837,7 +873,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const toggleCommentLike = useCallback((postId: string, commentId: string) => {
     setCommentsByPost((prev) => ({ ...prev, [postId]: (prev[postId] ?? []).map((c) => c.id === commentId ? { ...c, isLiked: !c.isLiked, likes: c.isLiked ? c.likes - 1 : c.likes + 1 } : c) }));
-  }, []);
+    if (authToken && postId.startsWith('server-post-') && commentId.startsWith('server-comment-')) {
+      void socialRequest<{ isLiked?: boolean; likes?: number }>(`/posts/${postId}/comments/${commentId}/like`, {
+        method: 'POST',
+        token: authToken,
+      }).then((result) => {
+        if (!result.ok) return;
+        setCommentsByPost((prev) => ({
+          ...prev,
+          [postId]: (prev[postId] ?? []).map((c) => c.id === commentId ? {
+            ...c,
+            isLiked: Boolean(result.data.isLiked),
+            likes: Number(result.data.likes ?? c.likes),
+          } : c),
+        }));
+      });
+    }
+  }, [authToken]);
 
   const togglePrayerCommentLike = useCallback((prayerId: string, commentId: string) => {
     setPrayerCommentsByPrayer((prev) => ({ ...prev, [prayerId]: (prev[prayerId] ?? []).map((c) => c.id === commentId ? { ...c, isLiked: !c.isLiked, likes: c.isLiked ? c.likes - 1 : c.likes + 1 } : c) }));
@@ -910,16 +962,84 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // ── Direct-message conversations ───────────────────────────────────────────
   const [conversations, setConversations] = useState<Conversation[]>(INITIAL_CONVERSATIONS);
 
+  useEffect(() => {
+    if (!authToken) {
+      setConversations(INITIAL_CONVERSATIONS);
+      return;
+    }
+    let cancelled = false;
+    void socialRequest<{ conversations?: Conversation[] }>('/conversations', { token: authToken })
+      .then((result) => {
+        if (!cancelled || !result.ok) {
+          if (!cancelled && result.ok && Array.isArray(result.data.conversations)) {
+            setConversations(result.data.conversations);
+          }
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authToken]);
+
   const markConversationRead = useCallback((convId: string) => {
     setConversations((prev) => prev.map((c) => (c.id === convId ? { ...c, unread: 0 } : c)));
-  }, []);
+    if (authToken && convId.startsWith('dm-conv-')) {
+      void socialRequest(`/conversations/${convId}/read`, { method: 'POST', token: authToken });
+    }
+  }, [authToken]);
 
   const addConversation = useCallback((conv: Omit<Conversation, 'id' | 'messages'>): string => {
     const id = `conv_${Date.now()}${Math.random().toString(36).substr(2, 4)}`;
     const newConv: Conversation = { ...conv, id, messages: [] };
     setConversations((prev) => [newConv, ...prev]);
+    if (authToken && conv.memberId && /^\d+$/.test(conv.memberId)) {
+      void socialRequest<{ conversationId?: string }>('/conversations', {
+        method: 'POST',
+        token: authToken,
+        body: { memberId: Number(conv.memberId) },
+      });
+    }
     return id;
-  }, []);
+  }, [authToken]);
+
+  const sendDirectMessage = useCallback(async (conversationId: string, message: DMMessage): Promise<DMMessage | null> => {
+    if (!authToken) return null;
+    let serverConversationId = conversationId;
+    let conversation = conversations.find((item) => item.id === conversationId);
+
+    if (!serverConversationId.startsWith('dm-conv-') && conversation?.memberId && /^\d+$/.test(conversation.memberId)) {
+      const created = await socialRequest<{ conversationId?: string }>('/conversations', {
+        method: 'POST',
+        token: authToken,
+        body: { memberId: Number(conversation.memberId) },
+      });
+      if (!created.ok || !created.data.conversationId) return null;
+      serverConversationId = created.data.conversationId;
+      setConversations((prev) => prev.map((item) => item.id === conversationId ? { ...item, id: serverConversationId } : item));
+    }
+
+    if (!serverConversationId.startsWith('dm-conv-')) return null;
+    const result = await socialRequest<{ message?: DMMessage }>(`/conversations/${serverConversationId}/messages`, {
+      method: 'POST',
+      token: authToken,
+      body: {
+        text: message.text,
+        mediaId: message.mediaId,
+        mediaType: message.mediaType,
+        audioDuration: message.audioDuration,
+        replyTo: message.replyTo,
+      },
+    });
+    if (!result.ok || !result.data.message) return null;
+    const persisted = result.data.message;
+    setConversations((prev) => prev.map((item) => item.id === serverConversationId ? {
+      ...item,
+      lastMessage: persisted.text || (persisted.mediaType ? `Sent ${persisted.mediaType}` : ''),
+      time: 'Now',
+      messages: [...item.messages, persisted],
+    } : item));
+    return persisted;
+  }, [authToken, conversations]);
 
   const startOrOpenConversation = useCallback(
     (member: { id: string; name: string; initials: string; color: string }): string => {
@@ -942,7 +1062,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <AppContext.Provider value={{ posts, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, toggleSave, togglePray, toggleFollow, toggleJoin, requestJoin, approveJoinRequest, declineJoinRequest, toggleReelLike, toggleReelSave, incrementReelShares, incrementPostShares, resharePost, addPrayer, addPost, addReel, addComment, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, conversations, startOrOpenConversation, markConversationRead, addConversation }}>
+    <AppContext.Provider value={{ posts, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, recordPostView, toggleSave, togglePray, toggleFollow, toggleJoin, requestJoin, approveJoinRequest, declineJoinRequest, toggleReelLike, toggleReelSave, incrementReelShares, incrementPostShares, resharePost, addPrayer, addPost, addReel, addComment, loadPostComments, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, conversations, startOrOpenConversation, markConversationRead, addConversation, sendDirectMessage }}>
       {children}
     </AppContext.Provider>
   );

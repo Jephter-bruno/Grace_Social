@@ -87,6 +87,7 @@ function mapPost(row: any, media: any[], userId: number | null, req?: any) {
     likes: Number(row.likes_count || 0),
     comments: Number(row.comments_count || 0),
     shares: Number(row.shares_count || 0),
+    views: Number(row.view_count || 0),
     reposts: 0,
     isLiked: Boolean(row.is_liked),
     isSaved: false,
@@ -114,7 +115,7 @@ function mapReel(row: any, media: any[], req?: any) {
     likes: Number(row.likes_count || 0),
     comments: Number(row.comments_count || 0),
     shares: Number(row.shares_count || 0),
-    views: 0,
+    views: Number(row.view_count || 0),
     isLiked: Boolean(row.is_liked),
     isSaved: false,
     imageIndex: Number(row.realm_category || 0),
@@ -195,7 +196,8 @@ router.get("/posts", async (req, res) => {
               EXISTS(
                 SELECT 1 FROM gs_post_likes pl
                 WHERE pl.post_id = p.id AND pl.user_id = $1
-              ) AS is_liked
+              ) AS is_liked,
+              (SELECT COUNT(*)::int FROM gs_post_views pv WHERE pv.post_id = p.id) AS view_count
        FROM gs_posts p
        JOIN gs_users u ON u.id = p.user_id
        WHERE p.is_realm = false
@@ -313,7 +315,8 @@ router.get("/realms", async (req, res) => {
               EXISTS(
                 SELECT 1 FROM gs_post_likes pl
                 WHERE pl.post_id = p.id AND pl.user_id = $1
-              ) AS is_liked
+              ) AS is_liked,
+              (SELECT COUNT(*)::int FROM gs_post_views pv WHERE pv.post_id = p.id) AS view_count
        FROM gs_posts p
        JOIN gs_users u ON u.id = p.user_id
        WHERE p.is_realm = true
@@ -466,9 +469,37 @@ router.post("/posts/:id/like", async (req, res) => {
       "SELECT COUNT(*)::int AS count FROM gs_post_likes WHERE post_id = $1",
       [postId],
     );
+    await pool.query("UPDATE gs_posts SET likes_count = $1 WHERE id = $2", [
+      count.rows[0].count,
+      postId,
+    ]);
     res.json({ isLiked: !existing.rows[0], likes: count.rows[0].count });
   } catch {
     res.status(500).json({ error: "Unable to update post like." });
+  }
+});
+
+router.post("/posts/:id/view", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const postId = parseServerId(req.params.id, "server-post-");
+  if (!postId) {
+    res.status(400).json({ error: "Invalid post id." });
+    return;
+  }
+  try {
+    await pool.query(
+      `INSERT INTO gs_post_views (post_id, user_id)
+       VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+      [postId, userId],
+    );
+    const count = await pool.query(
+      "SELECT COUNT(*)::int AS count FROM gs_post_views WHERE post_id = $1",
+      [postId],
+    );
+    res.json({ views: count.rows[0].count });
+  } catch {
+    res.status(500).json({ error: "Unable to record post view." });
   }
 });
 
@@ -509,10 +540,18 @@ router.get("/posts/:id/comments", async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT c.id, c.text, c.created_at, u.display_name, u.name, u.username, u.color,
-              u.avatar_url
+              u.avatar_url,
+              COUNT(DISTINCT pcl.id)::int AS likes,
+              EXISTS(
+                SELECT 1 FROM gs_post_comment_likes pcl2
+                WHERE pcl2.comment_id = c.id AND pcl2.user_id = $2
+              ) AS is_liked
        FROM gs_post_comments c JOIN gs_users u ON u.id = c.user_id
-       WHERE c.post_id = $1 ORDER BY c.created_at DESC`,
-      [postId],
+       LEFT JOIN gs_post_comment_likes pcl ON pcl.comment_id = c.id
+       WHERE c.post_id = $1
+       GROUP BY c.id, c.text, c.created_at, u.display_name, u.name, u.username, u.color, u.avatar_url
+       ORDER BY c.created_at DESC`,
+      [postId, optionalAuth(req)],
     );
     res.json({
       comments: result.rows.map((row: any) => ({
@@ -528,12 +567,55 @@ router.get("/posts/:id/comments", async (req, res) => {
         userColor: row.color || "#4A90A4",
         text: row.text,
         timestamp: relativeTime(row.created_at),
-        likes: 0,
-        isLiked: false,
+        likes: Number(row.likes || 0),
+        isLiked: Boolean(row.is_liked),
       })),
     });
   } catch {
     res.status(500).json({ error: "Unable to load comments." });
+  }
+});
+
+router.post("/posts/:id/comments/:commentId/like", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const postId = parseServerId(req.params.id, "server-post-");
+  const commentId = Number(req.params.commentId.replace("server-comment-", ""));
+  if (!postId || !Number.isInteger(commentId) || commentId < 1) {
+    res.status(400).json({ error: "Invalid post comment." });
+    return;
+  }
+  try {
+    const ownsPost = await pool.query(
+      "SELECT 1 FROM gs_post_comments WHERE id = $1 AND post_id = $2",
+      [commentId, postId],
+    );
+    if (!ownsPost.rows[0]) {
+      res.status(404).json({ error: "Comment not found." });
+      return;
+    }
+    const existing = await pool.query(
+      "SELECT 1 FROM gs_post_comment_likes WHERE comment_id = $1 AND user_id = $2",
+      [commentId, userId],
+    );
+    if (existing.rows[0]) {
+      await pool.query(
+        "DELETE FROM gs_post_comment_likes WHERE comment_id = $1 AND user_id = $2",
+        [commentId, userId],
+      );
+    } else {
+      await pool.query(
+        "INSERT INTO gs_post_comment_likes (comment_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        [commentId, userId],
+      );
+    }
+    const count = await pool.query(
+      "SELECT COUNT(*)::int AS count FROM gs_post_comment_likes WHERE comment_id = $1",
+      [commentId],
+    );
+    res.json({ isLiked: !existing.rows[0], likes: count.rows[0].count });
+  } catch {
+    res.status(500).json({ error: "Unable to update comment like." });
   }
 });
 

@@ -164,6 +164,89 @@ export const postCommentsTable = pgTable("gs_post_comments", {
   createdAt: createdAt(),
 });
 
+export const postViewsTable = pgTable(
+  "gs_post_views",
+  {
+    id: serial("id").primaryKey(),
+    postId: integer("post_id")
+      .notNull()
+      .references(() => postsTable.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    unique("gs_post_views_post_user_unique").on(table.postId, table.userId),
+  ],
+);
+
+export const postCommentLikesTable = pgTable(
+  "gs_post_comment_likes",
+  {
+    id: serial("id").primaryKey(),
+    commentId: integer("comment_id")
+      .notNull()
+      .references(() => postCommentsTable.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    unique("gs_post_comment_likes_comment_user_unique").on(
+      table.commentId,
+      table.userId,
+    ),
+  ],
+);
+
+export const dmConversationsTable = pgTable("gs_dm_conversations", {
+  id: serial("id").primaryKey(),
+  createdAt: createdAt(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const dmParticipantsTable = pgTable(
+  "gs_dm_participants",
+  {
+    id: serial("id").primaryKey(),
+    conversationId: integer("conversation_id")
+      .notNull()
+      .references(() => dmConversationsTable.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    unreadCount: integer("unread_count").default(0).notNull(),
+  },
+  (table) => [
+    unique("gs_dm_participants_conversation_user_unique").on(
+      table.conversationId,
+      table.userId,
+    ),
+  ],
+);
+
+export const dmMessagesTable = pgTable("gs_dm_messages", {
+  id: serial("id").primaryKey(),
+  conversationId: integer("conversation_id")
+    .notNull()
+    .references(() => dmConversationsTable.id, { onDelete: "cascade" }),
+  senderId: integer("sender_id")
+    .notNull()
+    .references(() => usersTable.id, { onDelete: "cascade" }),
+  text: text("text").default("").notNull(),
+  mediaId: integer("media_id").references(() => mediaTable.id, {
+    onDelete: "set null",
+  }),
+  mediaType: text("media_type"),
+  audioDuration: integer("audio_duration"),
+  replyTo: text("reply_to"),
+  createdAt: createdAt(),
+});
+
 export const storiesTable = pgTable("gs_stories", {
   id: serial("id").primaryKey(),
   userId: integer("user_id")

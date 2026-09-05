@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated as RNAnimated,
   Modal,
@@ -95,7 +95,7 @@ const sb = StyleSheet.create({
 export function PostCard({ post, isActive = false }: PostCardProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { toggleLike, toggleSave, toggleFollow, isFollowingUser, incrementPostShares, resharePost } = useApp();
+  const { toggleLike, recordPostView, toggleSave, toggleFollow, isFollowingUser, incrementPostShares, resharePost } = useApp();
   const { currentUser } = useAuth();
 
   // For repost cards, all content and interactions target the original post
@@ -113,6 +113,10 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
       ? POST_IMAGES[effectivePost.imageIndex]
       : null;
   const isFollowing = isFollowingUser(effectivePost.userHandle);
+
+  useEffect(() => {
+    if (isActive) recordPostView(effectivePost.id);
+  }, [isActive, effectivePost.id, recordPostView]);
 
   const [detailVisible, setDetailVisible] = useState(false);
   const [isMuted, setIsMuted] = useState(true);

@@ -30,12 +30,13 @@ export async function socialRequest<T = any>(
 
 export async function uploadSocialMedia(
   uri: string,
-  type: 'image' | 'video',
+  type: 'image' | 'video' | 'audio',
   token: string,
 ): Promise<{ ok: boolean; id?: number; url?: string; error?: string }> {
   try {
     const form = new FormData();
-    const extension = type === 'video' ? 'mp4' : 'jpg';
+    const extension = type === 'video' ? 'mp4' : type === 'audio' ? 'm4a' : 'jpg';
+    const contentType = type === 'video' ? 'video/mp4' : type === 'audio' ? 'audio/mp4' : 'image/jpeg';
     if (Platform.OS === 'web') {
       const blob = await fetch(uri).then((response) => response.blob());
       form.append('file', blob, `grace-social-${Date.now()}.${extension}`);
@@ -43,7 +44,7 @@ export async function uploadSocialMedia(
       form.append('file', {
         uri,
         name: `grace-social-${Date.now()}.${extension}`,
-        type: type === 'video' ? 'video/mp4' : 'image/jpeg',
+        type: contentType,
       } as any);
     }
     const response = await fetch(`${getApiBase()}/media`, {
