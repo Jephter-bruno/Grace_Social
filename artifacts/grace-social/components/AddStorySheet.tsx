@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import React, { useState, useRef } from 'react';
 import {
   Alert,
@@ -64,8 +64,6 @@ export function AddStorySheet({ visible, onClose, onSubmit }: Props) {
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const isWeb = Platform.OS === 'web';
-  const videoRef = useRef<Video>(null);
-
   const [mode, setMode] = useState<StoryMode>('text');
   const [gradientIdx, setGradientIdx] = useState(0);
   const [caption, setCaption] = useState('');
@@ -73,6 +71,21 @@ export function AddStorySheet({ visible, onClose, onSubmit }: Props) {
   const [selectedScripture, setSelectedScripture] = useState<StoryScripture | null>(null);
   const [showScripturePicker, setShowScripturePicker] = useState(false);
   const [scriptureSearch, setScriptureSearch] = useState('');
+  const videoPlayer = useVideoPlayer(
+    mode === 'video' && mediaUri ? { uri: mediaUri } : null,
+    (player) => {
+      player.loop = true;
+      player.muted = true;
+    },
+  );
+
+  React.useEffect(() => {
+    if (visible && mode === 'video' && mediaUri) {
+      videoPlayer.play();
+    } else {
+      videoPlayer.pause();
+    }
+  }, [mediaUri, mode, videoPlayer, visible]);
 
   const reset = () => {
     setMode('text');
@@ -234,14 +247,11 @@ export function AddStorySheet({ visible, onClose, onSubmit }: Props) {
             ) : mode === 'image' && mediaUri ? (
               <Image source={{ uri: mediaUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
             ) : mode === 'video' && mediaUri ? (
-              <Video
-                ref={videoRef}
-                source={{ uri: mediaUri }}
+              <VideoView
+                player={videoPlayer}
                 style={StyleSheet.absoluteFill}
-                resizeMode={ResizeMode.COVER}
-                isLooping
-                shouldPlay
-                isMuted
+                contentFit="cover"
+                nativeControls={false}
               />
             ) : null}
 

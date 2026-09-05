@@ -57,7 +57,7 @@
     "zod-validation-error": "^3.4.0"
   },
   "dependencies": {
-    "expo-av": "^16.0.8",
+    "expo-audio": "~57.0.4",
     "expo-video": "^57.0.3"
   }
 }

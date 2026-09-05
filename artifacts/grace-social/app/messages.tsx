@@ -1,5 +1,12 @@
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+  useAudioRecorder,
+} from 'expo-audio';
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -53,49 +60,23 @@ function fmtDuration(secs: number) {
 // ─── Audio-bubble player ──────────────────────────────────────────────────────
 
 function AudioBubble({ uri, duration, fromMe }: { uri: string; duration: number; fromMe: boolean }) {
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [pos, setPos] = useState(0); // 0-1 progress
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const load = useCallback(async () => {
-    const { sound: s } = await Audio.Sound.createAsync({ uri }, { shouldPlay: false });
-    s.setOnPlaybackStatusUpdate((st) => {
-      if (!st.isLoaded) return;
-      if (st.didJustFinish) {
-        setPlaying(false);
-        setPos(0);
-        if (intervalRef.current) clearInterval(intervalRef.current);
-      }
-    });
-    setSound(s);
-    return s;
-  }, [uri]);
+  const player = useAudioPlayer(uri, { updateInterval: 200 });
+  const status = useAudioPlayerStatus(player);
+  const playing = status.playing;
+  const pos = status.duration > 0 ? status.currentTime / status.duration : 0;
 
   const togglePlay = async () => {
     try {
-      let s = sound;
-      if (!s) s = await load();
       if (playing) {
-        await s.pauseAsync();
-        if (intervalRef.current) clearInterval(intervalRef.current);
-        setPlaying(false);
+        player.pause();
       } else {
-        await s.playAsync();
-        setPlaying(true);
-        intervalRef.current = setInterval(async () => {
-          const st = await s!.getStatusAsync();
-          if (st.isLoaded && st.durationMillis) {
-            setPos(st.positionMillis / st.durationMillis);
-          }
-        }, 200);
+        if (status.didJustFinish) await player.seekTo(0);
+        player.play();
       }
     } catch {
       Alert.alert('Playback error', 'Could not play audio.');
     }
   };
-
-  useEffect(() => () => { sound?.unloadAsync(); }, [sound]);
 
   const accentColor = fromMe ? 'rgba(255,255,255,0.9)' : C.sentBubble;
   const trackColor = fromMe ? 'rgba(255,255,255,0.3)' : C.border;
@@ -270,7 +251,7 @@ function ConversationView({ conv, onBack }: { conv: Conversation; onBack: () => 
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [recDuration, setRecDuration] = useState(0);
-  const recordingRef = useRef<Audio.Recording | null>(null);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const listRef = useRef<FlatList>(null);
 
@@ -355,16 +336,14 @@ function ConversationView({ conv, onBack }: { conv: Conversation; onBack: () => 
   // ── Audio recording ──
   const startRecording = async () => {
     try {
-      const perm = await Audio.requestPermissionsAsync();
+      const perm = await requestRecordingPermissionsAsync();
       if (!perm.granted) {
         Alert.alert('Permission needed', 'Please allow microphone access.');
         return;
       }
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
-      );
-      recordingRef.current = recording;
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
       setIsRecording(true);
       setRecDuration(0);
       recTimerRef.current = setInterval(() => setRecDuration((d) => d + 1), 1000);
@@ -375,13 +354,12 @@ function ConversationView({ conv, onBack }: { conv: Conversation; onBack: () => 
   };
 
   const stopRecording = async () => {
-    if (!recordingRef.current) return;
+    if (!recorder.isRecording) return;
     try {
       if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
+      await recorder.stop();
+      const uri = recorder.uri;
       const duration = recDuration;
-      recordingRef.current = null;
       setIsRecording(false);
       setRecDuration(0);
       if (uri && duration > 0) {
@@ -405,9 +383,9 @@ function ConversationView({ conv, onBack }: { conv: Conversation; onBack: () => 
   useEffect(() => {
     return () => {
       if (recTimerRef.current) clearInterval(recTimerRef.current);
-      recordingRef.current?.stopAndUnloadAsync().catch(() => {});
+      if (recorder.isRecording) recorder.stop().catch(() => {});
     };
-  }, []);
+  }, [recorder]);
 
   return (
     <KeyboardAvoidingView

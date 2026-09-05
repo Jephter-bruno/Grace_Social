@@ -16,7 +16,7 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Video, ResizeMode } from 'expo-av';
+import { useVideoPlayer, VideoView } from 'expo-video';
 import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
@@ -52,7 +52,6 @@ export function StoryViewer({
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
   const { currentUser } = useAuth();
-  const videoRef = useRef<Video>(null);
   const inputRef = useRef<TextInput>(null);
 
   const [storyIndex, setStoryIndex] = useState(initialIndex);
@@ -113,6 +112,13 @@ export function StoryViewer({
   const itemCount = currentStory?.items.length ?? 0;
   const likeKey = `${storyIndex}-${itemIndex}`;
   const isLiked = likedMap[likeKey] ?? currentItem?.isLiked ?? false;
+  const videoSource = currentItem?.mediaType === 'video' && currentItem.mediaUri
+    ? { uri: currentItem.mediaUri }
+    : null;
+  const videoPlayer = useVideoPlayer(videoSource, (player) => {
+    player.loop = true;
+    player.muted = false;
+  });
 
   // ── Progress bar ──
   const stopAnim = useCallback(() => {
@@ -170,6 +176,14 @@ export function StoryViewer({
       startAnim();
     }
   }, [inputFocused]);
+
+  useEffect(() => {
+    if (visible && currentItem?.mediaType === 'video' && !inputFocused) {
+      videoPlayer.play();
+    } else {
+      videoPlayer.pause();
+    }
+  }, [currentItem?.mediaType, currentItem?.mediaUri, inputFocused, visible, videoPlayer]);
 
   // Mark seen
   useEffect(() => {
@@ -288,14 +302,11 @@ export function StoryViewer({
         {hasMedia && currentItem?.mediaType === 'image' ? (
           <Image source={{ uri: currentItem.mediaUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         ) : hasMedia && currentItem?.mediaType === 'video' ? (
-          <Video
-            ref={videoRef}
-            source={{ uri: currentItem.mediaUri! }}
+          <VideoView
+            player={videoPlayer}
             style={StyleSheet.absoluteFill}
-            resizeMode={ResizeMode.COVER}
-            isLooping
-            shouldPlay={visible && !inputFocused}
-            isMuted={false}
+            contentFit="cover"
+            nativeControls={false}
           />
         ) : (
           <LinearGradient colors={gradient} style={StyleSheet.absoluteFill} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} />
