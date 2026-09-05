@@ -90,6 +90,7 @@ export const postsTable = pgTable("gs_posts", {
   caption: text("caption").default("").notNull(),
   bibleReference: text("bible_reference"),
   bibleText: text("bible_text"),
+  communityId: text("community_id"),
   isRealm: boolean("is_realm").default(false).notNull(),
   realmCategory: integer("realm_category"),
   realmDuration: text("realm_duration"),
@@ -149,6 +150,23 @@ export const postSharesTable = pgTable(
   },
   (table) => [
     unique("gs_post_shares_post_user_unique").on(table.postId, table.userId),
+  ],
+);
+
+export const postRepostsTable = pgTable(
+  "gs_post_reposts",
+  {
+    id: serial("id").primaryKey(),
+    postId: integer("post_id")
+      .notNull()
+      .references(() => postsTable.id, { onDelete: "cascade" }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => usersTable.id, { onDelete: "cascade" }),
+    createdAt: createdAt(),
+  },
+  (table) => [
+    unique("gs_post_reposts_post_user_unique").on(table.postId, table.userId),
   ],
 );
 

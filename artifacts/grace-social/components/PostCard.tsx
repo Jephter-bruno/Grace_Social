@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated as RNAnimated,
+  Alert,
   Modal,
   Platform,
   StyleSheet,
@@ -95,14 +96,16 @@ const sb = StyleSheet.create({
 export function PostCard({ post, isActive = false }: PostCardProps) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { toggleLike, recordPostView, toggleSave, toggleFollow, isFollowingUser, incrementPostShares, resharePost } = useApp();
+  const { toggleLike, recordPostView, toggleSave, toggleFollow, isFollowingUser, incrementPostShares, resharePost, deletePost } = useApp();
   const { currentUser } = useAuth();
 
   // For repost cards, all content and interactions target the original post
   const effectivePost: Post = (post.isRepost && post.originalPost) ? (post.originalPost as Post) : post;
   const isRepostCard = post.isRepost && !!post.originalPost;
 
-  const isOwnPost = effectivePost.userId === 'currentUser';
+  const isOwnPost =
+    effectivePost.userId === 'currentUser' ||
+    effectivePost.userId === String(currentUser?.id);
   // Multi-media carousel takes precedence over legacy single-media fields
   const hasCarousel = Array.isArray(effectivePost.mediaItems) && effectivePost.mediaItems.length >= 2;
   const isVideo = !hasCarousel && Boolean(effectivePost.videoUri);
@@ -235,6 +238,25 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
         userInitials: (currentUser as any)?.initials || 'ME',
         userColor: (currentUser as any)?.color || '#4A90A4',
       });
+    });
+  };
+
+  const handleDelete = () => {
+    closeMore(() => {
+      Alert.alert(
+        'Delete post?',
+        'This permanently removes the post for everyone.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete',
+            style: 'destructive',
+            onPress: () => {
+              void deletePost(effectivePost.id);
+            },
+          },
+        ],
+      );
     });
   };
 
@@ -531,6 +553,7 @@ export function PostCard({ post, isActive = false }: PostCardProps) {
               { icon: 'eye-off', label: 'Not Interested', action: () => closeMore() },
               { icon: 'copy', label: 'Copy Link', action: () => closeMore() },
               { icon: 'share-2', label: 'Share Post', action: () => closeMore(() => setShareVisible(true)) },
+              ...(isOwnPost ? [{ icon: 'trash-2', label: 'Delete Post', action: handleDelete, danger: true }] : []),
               ...(!isOwnPost ? [{ icon: isFollowing ? 'user-minus' : 'user-plus', label: isFollowing ? `Unfollow ${effectivePost.userHandle}` : `Follow ${effectivePost.userHandle}`, action: () => closeMore(handleFollow) }] : []),
               { icon: 'flag', label: 'Report Post', action: () => closeMore(), danger: true },
             ].map((opt) => (

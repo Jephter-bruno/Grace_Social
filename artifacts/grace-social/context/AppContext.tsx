@@ -24,6 +24,7 @@ export interface Post {
   mediaItems?: PostMediaItem[];
   caption: string;
   bibleVerse?: { reference: string; text: string };
+  communityId?: string;
   likes: number;
   comments: number;
   shares: number;
@@ -92,6 +93,7 @@ export interface Reel {
 export interface ContentCreateResult {
   ok: boolean;
   error?: string;
+  post?: Post;
 }
 
 export interface PendingMember {
@@ -231,6 +233,7 @@ interface AppContextType {
   incrementReelShares: (reelId: string) => void;
   incrementPostShares: (postId: string) => void;
   resharePost: (postId: string, resharer: { userName: string; userHandle: string; userInitials: string; userColor: string }) => void;
+  deletePost: (postId: string) => Promise<ContentCreateResult>;
   addPrayer: (prayer: Omit<Prayer, 'id'>) => void;
   addPost: (post: Omit<Post, 'id'>) => Promise<ContentCreateResult>;
   addReel: (reel: Omit<Reel, 'id'>) => Promise<ContentCreateResult>;
@@ -248,6 +251,24 @@ interface AppContextType {
 }
 
 const AppContext = createContext<AppContextType | null>(null);
+
+function patchPostTree(post: Post, postId: string, patch: Partial<Post>): Post {
+  if (post.id === postId) return { ...post, ...patch };
+  if (post.isRepost && post.originalPost?.id === postId) {
+    return { ...post, originalPost: { ...post.originalPost, ...patch } };
+  }
+  return post;
+}
+
+function getRealtimeUrl(token: string): string {
+  const apiUrl =
+    process.env.EXPO_PUBLIC_API_URL ||
+    (process.env.EXPO_PUBLIC_DOMAIN
+      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+      : "http://localhost:3000/api");
+  const websocketBase = apiUrl.replace(/^http:/, "ws:").replace(/^https:/, "wss:");
+  return `${websocketBase}/ws?token=${encodeURIComponent(token)}`;
+}
 
 // ─── Seed DM conversations ────────────────────────────────────────────────────
 
@@ -553,7 +574,7 @@ const INITIAL_NOTIFICATIONS: Notification[] = [
 ];
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const { authToken } = useAuth();
+  const { authToken, currentUser } = useAuth();
   const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
   const [prayers, setPrayers] = useState<Prayer[]>(INITIAL_PRAYERS);
   const [reels, setReels] = useState<Reel[]>(INITIAL_REELS);
@@ -586,17 +607,184 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
   }, [authToken]);
 
+  useEffect(() => {
+    if (!authToken || typeof WebSocket === 'undefined') return;
+
+    let stopped = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryDelay = 1000;
+
+    const applyRealtimeEvent = (type: string, payload: any) => {
+      if (type === "post.created" && payload?.post) {
+        setPosts((prev) => [
+          payload.post,
+          ...prev.filter((post) => post.id !== payload.post.id),
+        ]);
+        return;
+      }
+
+      if (type === "post.deleted" && payload?.postId) {
+        setPosts((prev) =>
+          prev.filter(
+            (post) =>
+              post.id !== payload.postId &&
+              post.originalPost?.id !== payload.postId,
+          ),
+        );
+        setCommentsByPost((prev) => {
+          const next = { ...prev };
+          delete next[payload.postId];
+          return next;
+        });
+        return;
+      }
+
+      if (
+        (type === "post.reposted" || type === "post.unreposted") &&
+        payload?.originalPostId
+      ) {
+        const actorId = String(payload.actorId ?? "");
+        setPosts((prev) => {
+          const withoutDuplicate = prev.filter((post) => {
+            if (!post.isRepost) return true;
+            if (payload.repost?.id && post.id === payload.repost.id) return false;
+            return !(
+              post.originalPost?.id === payload.originalPostId &&
+              post.userId === actorId
+            );
+          });
+          const patched = withoutDuplicate.map((post) =>
+            patchPostTree(post, payload.originalPostId, {
+              reposts: Number(payload.reposts ?? post.reposts),
+              isRepostedByMe:
+                actorId === String(currentUser?.id)
+                  ? type === "post.reposted"
+                  : post.isRepostedByMe,
+            }),
+          );
+          if (type === "post.reposted" && payload.repost) {
+            return [payload.repost, ...patched];
+          }
+          return patched;
+        });
+        return;
+      }
+
+      if (type === "post.like.updated" && payload?.postId) {
+        setPosts((prev) =>
+          prev.map((post) =>
+            patchPostTree(post, payload.postId, {
+              likes: Number(payload.likes ?? post.likes),
+              ...(String(payload.actorId) === String(currentUser?.id)
+                ? { isLiked: Boolean(payload.isLiked) }
+                : {}),
+            }),
+          ),
+        );
+        setReels((prev) =>
+          prev.map((reel) =>
+            reel.id === payload.postId
+              ? {
+                  ...reel,
+                  likes: Number(payload.likes ?? reel.likes),
+                  ...(String(payload.actorId) === String(currentUser?.id)
+                    ? { isLiked: Boolean(payload.isLiked) }
+                    : {}),
+                }
+              : reel,
+          ),
+        );
+        return;
+      }
+
+      if (type === "comment.created" && payload?.postId && payload?.comment) {
+        setCommentsByPost((prev) => {
+          const current = prev[payload.postId] ?? [];
+          if (current.some((comment) => comment.id === payload.comment.id)) {
+            return prev;
+          }
+          return { ...prev, [payload.postId]: [payload.comment, ...current] };
+        });
+        setPosts((prev) =>
+          prev.map((post) =>
+            patchPostTree(post, payload.postId, {
+              comments: Number(payload.comments ?? post.comments),
+            }),
+          ),
+        );
+        return;
+      }
+
+      if (
+        type === "comment.like.updated" &&
+        payload?.postId &&
+        payload?.commentId
+      ) {
+        setCommentsByPost((prev) => ({
+          ...prev,
+          [payload.postId]: (prev[payload.postId] ?? []).map((comment) =>
+            comment.id === payload.commentId
+              ? {
+                  ...comment,
+                  likes: Number(payload.likes ?? comment.likes),
+                  ...(String(payload.actorId) === String(currentUser?.id)
+                    ? { isLiked: Boolean(payload.isLiked) }
+                    : {}),
+                }
+              : comment,
+          ),
+        }));
+      }
+    };
+
+    const connect = () => {
+      if (stopped) return;
+      const socket = new WebSocket(getRealtimeUrl(authToken));
+      socket.onopen = () => {
+        retryDelay = 1000;
+      };
+      socket.onmessage = (event) => {
+        try {
+          const message = JSON.parse(String(event.data));
+          applyRealtimeEvent(message.type, message.payload);
+        } catch {
+          // Ignore malformed events; the next valid event remains processable.
+        }
+      };
+      socket.onclose = () => {
+        if (stopped) return;
+        retryTimer = setTimeout(connect, retryDelay);
+        retryDelay = Math.min(retryDelay * 2, 30000);
+      };
+      socket.onerror = () => socket.close();
+    };
+
+    connect();
+    return () => {
+      stopped = true;
+      if (retryTimer) clearTimeout(retryTimer);
+    };
+  }, [authToken, currentUser?.id]);
+
   const toggleLike = useCallback((postId: string) => {
-    setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, isLiked: !p.isLiked, likes: p.isLiked ? p.likes - 1 : p.likes + 1 } : p));
+    setPosts((prev) => prev.map((p) => {
+      const target = p.id === postId ? p : p.originalPost?.id === postId ? p.originalPost : null;
+      if (!target) return p;
+      return patchPostTree(p, postId, {
+        isLiked: !target.isLiked,
+        likes: target.isLiked ? target.likes - 1 : target.likes + 1,
+      });
+    }));
     if (authToken && postId.startsWith('server-post-')) {
       void socialRequest<{ isLiked?: boolean; likes?: number }>(`/posts/${postId}/like`, { method: 'POST', token: authToken })
         .then((result) => {
           if (!result.ok) return;
-          setPosts((prev) => prev.map((p) => p.id === postId ? {
-            ...p,
-            isLiked: Boolean(result.data.isLiked),
-            likes: Number(result.data.likes ?? p.likes),
-          } : p));
+           setPosts((prev) => prev.map((p) => p.id === postId
+             ? patchPostTree(p, postId, {
+                 isLiked: Boolean(result.data.isLiked),
+                 likes: Number(result.data.likes ?? p.likes),
+               })
+             : p));
         });
     }
   }, [authToken]);
@@ -670,22 +858,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     postId: string,
     resharer: { userName: string; userHandle: string; userInitials: string; userColor: string },
   ) => {
+    const target = posts.find((post) => post.id === postId);
+    const root = target?.isRepost && target.originalPost
+      ? (target.originalPost as Post)
+      : target;
+    if (!root) return;
+    const existing = posts.find(
+      (post) =>
+        post.isRepost &&
+        post.originalPost?.id === root.id &&
+        post.userId === String(currentUser?.id ?? "currentUser"),
+    );
+
     setPosts((prev) => {
-      const target = prev.find((p) => p.id === postId);
-      if (!target) return prev;
-
-      // Always point to the true original — don't nest reposts
-      const root = (target.isRepost && target.originalPost) ? target.originalPost : target;
-      const rootId = root.id;
-
-      // Undo if already reposted
-      const existing = prev.find(
-        (p) => p.isRepost && p.originalPost?.id === rootId && p.userId === 'currentUser',
-      );
       if (existing) {
         return prev
           .filter((p) => p.id !== existing.id)
-          .map((p) => p.id === rootId
+          .map((p) => p.id === root.id
             ? { ...p, reposts: Math.max(0, p.reposts - 1), isRepostedByMe: false }
             : p,
           );
@@ -693,8 +882,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       // Create repost wrapper
       const newRepost: Post = {
-        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-        userId: 'currentUser',
+        id: `pending-repost-${Date.now()}`,
+        userId: String(currentUser?.id ?? 'currentUser'),
         userName: resharer.userName,
         userHandle: resharer.userHandle,
         userInitials: resharer.userInitials,
@@ -715,12 +904,68 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       // Increment repost count and flag the original
       return [
         newRepost,
-        ...prev.map((p) => p.id === rootId
+        ...prev.map((p) => p.id === root.id
           ? { ...p, reposts: p.reposts + 1, isRepostedByMe: true }
           : p,
         ),
       ];
     });
+
+    if (authToken && root.id.startsWith("server-post-")) {
+      void socialRequest<{
+        reposted?: boolean;
+        reposts?: number;
+        repost?: Post | null;
+      }>(`/posts/${root.id}/repost`, {
+        method: "POST",
+        token: authToken,
+      }).then((result) => {
+        if (!result.ok) return;
+        setPosts((prev) => {
+          const withoutPending = prev.filter(
+            (post) =>
+              !(
+                post.id.startsWith("pending-repost-") &&
+                post.originalPost?.id === root.id
+              ) &&
+              post.id !== result.data.repost?.id,
+          );
+          const patched = withoutPending.map((post) =>
+            patchPostTree(post, root.id, {
+              reposts: Number(result.data.reposts ?? post.reposts),
+              isRepostedByMe: Boolean(result.data.reposted),
+            }),
+          );
+          return result.data.reposted && result.data.repost
+            ? [result.data.repost, ...patched]
+            : patched;
+        });
+      });
+    }
+  }, [authToken, currentUser?.id, posts]);
+
+  const deletePost = useCallback(async (postId: string): Promise<ContentCreateResult> => {
+    if (!authToken || !postId.startsWith("server-post-")) {
+      return { ok: false, error: "This post cannot be deleted." };
+    }
+    const result = await socialRequest<{ error?: string }>(`/posts/${postId}`, {
+      method: "DELETE",
+      token: authToken,
+    });
+    if (!result.ok) {
+      return { ok: false, error: result.data.error || "Unable to delete the post." };
+    }
+    setPosts((prev) =>
+      prev.filter(
+        (post) => post.id !== postId && post.originalPost?.id !== postId,
+      ),
+    );
+    setCommentsByPost((prev) => {
+      const next = { ...prev };
+      delete next[postId];
+      return next;
+    });
+    return { ok: true };
   }, [authToken]);
 
   // Per-user follow state keyed by userHandle — seed with handles already followed in initial reels
@@ -795,13 +1040,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         caption: post.caption,
         bibleVerse: post.bibleVerse,
         mediaItems: uploadedItems,
+          communityId: post.communityId,
       },
     });
     if (!result.ok || !result.data.post) {
       return { ok: false, error: result.data.error || 'Unable to save the post.' };
     }
     setPosts((prev) => [result.data.post!, ...prev.filter((item) => item.id !== result.data.post!.id)]);
-    return { ok: true };
+      return { ok: true, post: result.data.post };
   }, [authToken]);
 
   const addReel = useCallback(async (reel: Omit<Reel, 'id'>): Promise<ContentCreateResult> => {
@@ -835,7 +1081,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const addComment = useCallback((postId: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => {
     const newComment: Comment = { id: Date.now().toString() + Math.random().toString(36).substr(2, 9), postId, userName: user?.userName ?? 'You', userInitials: user?.userInitials ?? 'ME', userColor: user?.userColor ?? '#4A90A4', text, timestamp: 'just now', likes: 0, isLiked: false };
     setCommentsByPost((prev) => ({ ...prev, [postId]: [newComment, ...(prev[postId] ?? [])] }));
-    setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, comments: p.comments + 1 } : p)));
+    setPosts((prev) => prev.map((p) => patchPostTree(p, postId, { comments: p.comments + 1 })));
     if (authToken && postId.startsWith('server-post-')) {
       void socialRequest<{ comment?: Comment }>(`/posts/${postId}/comments`, {
         method: 'POST',
@@ -847,7 +1093,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             ...prev,
             [postId]: [
               result.data.comment!,
-              ...(prev[postId] ?? []).filter((comment) => comment.id !== newComment.id),
+              ...(prev[postId] ?? []).filter(
+                (comment) =>
+                  comment.id !== newComment.id &&
+                  comment.id !== result.data.comment!.id,
+              ),
             ],
           }));
         }
@@ -1062,7 +1312,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <AppContext.Provider value={{ posts, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, recordPostView, toggleSave, togglePray, toggleFollow, toggleJoin, requestJoin, approveJoinRequest, declineJoinRequest, toggleReelLike, toggleReelSave, incrementReelShares, incrementPostShares, resharePost, addPrayer, addPost, addReel, addComment, loadPostComments, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, conversations, startOrOpenConversation, markConversationRead, addConversation, sendDirectMessage }}>
+    <AppContext.Provider value={{ posts, prayers, reels, communities, notifications, commentsByPost, prayerCommentsByPrayer, unreadCount, userProfile, pendingVerse, followedHandles, followingCount, isFollowingUser, updateProfile, setPendingVerse, markNotificationRead, addNotification, deleteNotification, deleteAllNotifications, toggleLike, recordPostView, toggleSave, togglePray, toggleFollow, toggleJoin, requestJoin, approveJoinRequest, declineJoinRequest, toggleReelLike, toggleReelSave, incrementReelShares, incrementPostShares, resharePost, deletePost, addPrayer, addPost, addReel, addComment, loadPostComments, addPrayerComment, toggleCommentLike, togglePrayerCommentLike, markAllRead, conversations, startOrOpenConversation, markConversationRead, addConversation, sendDirectMessage }}>
       {children}
     </AppContext.Provider>
   );

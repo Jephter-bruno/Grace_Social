@@ -2,6 +2,7 @@ import { Router } from "express";
 import jwt from "jsonwebtoken";
 import multer from "multer";
 import { pool } from "@workspace/db";
+import { broadcastRealtimeEvent } from "../realtime";
 
 const router = Router();
 const upload = multer({
@@ -53,7 +54,7 @@ function mediaUrl(id: number, req?: any): string {
   return `${protocol}://${host}/api/media/${id}`;
 }
 
-function mapPost(row: any, media: any[], userId: number | null, req?: any) {
+function mapPost(row: any, media: any[], userId: number | null, req?: any): any {
   return {
     id: `server-post-${row.id}`,
     userId: String(row.user_id),
@@ -84,6 +85,7 @@ function mapPost(row: any, media: any[], userId: number | null, req?: any) {
     bibleVerse: row.bible_reference
       ? { reference: row.bible_reference, text: row.bible_text || "" }
       : undefined,
+    communityId: row.community_id || undefined,
     likes: Number(row.likes_count || 0),
     comments: Number(row.comments_count || 0),
     shares: Number(row.shares_count || 0),
@@ -197,7 +199,12 @@ router.get("/posts", async (req, res) => {
                 SELECT 1 FROM gs_post_likes pl
                 WHERE pl.post_id = p.id AND pl.user_id = $1
               ) AS is_liked,
-              (SELECT COUNT(*)::int FROM gs_post_views pv WHERE pv.post_id = p.id) AS view_count
+               (SELECT COUNT(*)::int FROM gs_post_views pv WHERE pv.post_id = p.id) AS view_count,
+               (SELECT COUNT(*)::int FROM gs_post_reposts pr WHERE pr.post_id = p.id) AS repost_count,
+               EXISTS(
+                 SELECT 1 FROM gs_post_reposts pr2
+                 WHERE pr2.post_id = p.id AND pr2.user_id = $1
+               ) AS is_reposted_by_me
        FROM gs_posts p
        JOIN gs_users u ON u.id = p.user_id
        WHERE p.is_realm = false
@@ -217,10 +224,85 @@ router.get("/posts", async (req, res) => {
       list.push(item);
       mediaByPost.set(Number(item.post_id), list);
     }
+    const mappedPosts = posts.rows.map((row: any) => {
+      const post = mapPost(
+        row,
+        mediaByPost.get(Number(row.id)) || [],
+        userId,
+        req,
+      );
+      post.reposts = Number(row.repost_count || 0);
+      post.isRepostedByMe = Boolean(row.is_reposted_by_me);
+      return { post, createdAt: new Date(row.created_at).getTime() };
+    });
+
+    const reposts = await pool.query(
+      `SELECT
+         r.id AS repost_id, r.created_at AS repost_created_at,
+         p.*, u.name, u.display_name, u.username, u.color, u.avatar_url,
+         ru.id AS repost_user_id, ru.name AS repost_name,
+         ru.display_name AS repost_display_name, ru.username AS repost_username,
+         ru.color AS repost_color, ru.avatar_url AS repost_avatar_url,
+         EXISTS(
+           SELECT 1 FROM gs_post_likes pl
+           WHERE pl.post_id = p.id AND pl.user_id = $1
+         ) AS is_liked,
+         (SELECT COUNT(*)::int FROM gs_post_views pv WHERE pv.post_id = p.id) AS view_count,
+         (SELECT COUNT(*)::int FROM gs_post_reposts pr WHERE pr.post_id = p.id) AS repost_count
+       FROM gs_post_reposts r
+       JOIN gs_posts p ON p.id = r.post_id
+       JOIN gs_users u ON u.id = p.user_id
+       JOIN gs_users ru ON ru.id = r.user_id
+       WHERE p.is_realm = false
+       ORDER BY r.created_at DESC
+       LIMIT 100`,
+      [userId],
+    );
+    const mappedReposts = reposts.rows.map((row: any) => {
+      const originalPost = mapPost(
+        row,
+        mediaByPost.get(Number(row.id)) || [],
+        userId,
+        req,
+      );
+      originalPost.reposts = Number(row.repost_count || 0);
+      return {
+        createdAt: new Date(row.repost_created_at).getTime(),
+        post: {
+        id: `server-repost-${row.repost_id}`,
+        userId: String(row.repost_user_id),
+        userName: row.repost_display_name || row.repost_name || row.repost_username,
+        userHandle: `@${row.repost_username}`,
+        userInitials: (
+          row.repost_display_name || row.repost_name || row.repost_username
+        )
+          .split(/\s+/)
+          .map((part: string) => part[0])
+          .join("")
+          .slice(0, 2)
+          .toUpperCase(),
+        userColor: row.repost_color || "#4A90A4",
+        avatarUrl: row.repost_avatar_url,
+        imageIndex: null,
+        communityId: originalPost.communityId,
+        caption: "",
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        reposts: 0,
+        isLiked: false,
+        isSaved: false,
+        timestamp: relativeTime(row.repost_created_at),
+        isRepost: true,
+        originalPost,
+        },
+      };
+    });
     res.json({
-      posts: posts.rows.map((row: any) =>
-        mapPost(row, mediaByPost.get(Number(row.id)) || [], userId, req),
-      ),
+      posts: [...mappedPosts, ...mappedReposts].sort(
+        (a: any, b: any) =>
+          b.createdAt - a.createdAt,
+      ).map((item: any) => item.post),
     });
   } catch (error) {
     req.log?.error(error);
@@ -231,7 +313,7 @@ router.get("/posts", async (req, res) => {
 router.post("/posts", async (req, res) => {
   const userId = requireAuth(req, res);
   if (!userId) return;
-  const { caption, bibleVerse, mediaItems = [] } = req.body || {};
+  const { caption, bibleVerse, mediaItems = [], communityId } = req.body || {};
   if (typeof caption !== "string" || !caption.trim()) {
     res.status(400).json({ error: "A caption is required." });
     return;
@@ -253,14 +335,18 @@ router.post("/posts", async (req, res) => {
   try {
     await client.query("BEGIN");
     const postResult = await client.query(
-      `INSERT INTO gs_posts (user_id, caption, bible_reference, bible_text, is_realm)
-       VALUES ($1, $2, $3, $4, false)
+      `INSERT INTO gs_posts
+         (user_id, caption, bible_reference, bible_text, community_id, is_realm)
+       VALUES ($1, $2, $3, $4, $5, false)
        RETURNING id`,
       [
         userId,
         caption.trim(),
         bibleVerse?.reference || null,
         bibleVerse?.text || null,
+        typeof communityId === "string" && communityId.trim()
+          ? communityId.trim()
+          : null,
       ],
     );
     const postId = Number(postResult.rows[0].id);
@@ -297,6 +383,10 @@ router.post("/posts", async (req, res) => {
     );
     res.status(201).json({
       post: mapPost(result.rows[0], postMedia.rows, userId, req),
+    });
+    broadcastRealtimeEvent("post.created", {
+      post: mapPost(result.rows[0], postMedia.rows, userId, req),
+      actorId: userId,
     });
   } catch (error: any) {
     await client.query("ROLLBACK");
@@ -473,7 +563,14 @@ router.post("/posts/:id/like", async (req, res) => {
       count.rows[0].count,
       postId,
     ]);
-    res.json({ isLiked: !existing.rows[0], likes: count.rows[0].count });
+    const payload = {
+      postId: req.params.id,
+      isLiked: !existing.rows[0],
+      likes: count.rows[0].count,
+      actorId: userId,
+    };
+    res.json({ isLiked: payload.isLiked, likes: payload.likes });
+    broadcastRealtimeEvent("post.like.updated", payload);
   } catch {
     res.status(500).json({ error: "Unable to update post like." });
   }
@@ -528,6 +625,127 @@ router.post("/posts/:id/share", async (req, res) => {
     res.json({ shares: count.rows[0].count });
   } catch {
     res.status(500).json({ error: "Unable to share post." });
+  }
+});
+
+router.post("/posts/:id/repost", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const postId = parseServerId(req.params.id, "server-post-");
+  if (!postId) {
+    res.status(400).json({ error: "Invalid post id." });
+    return;
+  }
+
+  try {
+    const existing = await pool.query(
+      "SELECT id FROM gs_post_reposts WHERE post_id = $1 AND user_id = $2",
+      [postId, userId],
+    );
+    let repostId: number | null = null;
+    let reposted = false;
+    if (existing.rows[0]) {
+      await pool.query(
+        "DELETE FROM gs_post_reposts WHERE post_id = $1 AND user_id = $2",
+        [postId, userId],
+      );
+    } else {
+      const inserted = await pool.query(
+        "INSERT INTO gs_post_reposts (post_id, user_id) VALUES ($1, $2) RETURNING id",
+        [postId, userId],
+      );
+      repostId = Number(inserted.rows[0].id);
+      reposted = true;
+    }
+    const count = await pool.query(
+      "SELECT COUNT(*)::int AS count FROM gs_post_reposts WHERE post_id = $1",
+      [postId],
+    );
+    const user = await pool.query(
+      "SELECT id, name, display_name, username, color, avatar_url FROM gs_users WHERE id = $1",
+      [userId],
+    );
+    const actor = user.rows[0];
+    const original = await pool.query(
+      `SELECT p.*, u.name, u.display_name, u.username, u.color, u.avatar_url,
+              EXISTS(
+                SELECT 1 FROM gs_post_likes pl
+                WHERE pl.post_id = p.id AND pl.user_id = $2
+              ) AS is_liked,
+              (SELECT COUNT(*)::int FROM gs_post_views pv WHERE pv.post_id = p.id) AS view_count,
+              (SELECT COUNT(*)::int FROM gs_post_reposts pr WHERE pr.post_id = p.id) AS repost_count
+       FROM gs_posts p JOIN gs_users u ON u.id = p.user_id
+       WHERE p.id = $1`,
+      [postId, userId],
+    );
+    const originalMedia = await pool.query(
+      "SELECT media_id, media_type FROM gs_post_media WHERE post_id = $1 ORDER BY position ASC",
+      [postId],
+    );
+    const originalPost = mapPost(original.rows[0], originalMedia.rows, userId, req);
+    originalPost.reposts = Number(count.rows[0].count);
+    originalPost.isRepostedByMe = reposted || Boolean(existing.rows[0]);
+    const repost = reposted
+      ? {
+          id: `server-repost-${repostId}`,
+          userId: String(actor.id),
+          userName: actor.display_name || actor.name || actor.username,
+          userHandle: `@${actor.username}`,
+          userInitials: (actor.display_name || actor.name || actor.username)
+            .split(/\s+/).map((part: string) => part[0]).join("").slice(0, 2).toUpperCase(),
+          userColor: actor.color || "#4A90A4",
+          avatarUrl: actor.avatar_url,
+          imageIndex: null,
+          communityId: originalPost.communityId,
+          caption: "",
+          likes: 0,
+          comments: 0,
+          shares: 0,
+          reposts: 0,
+          isLiked: false,
+          isSaved: false,
+          timestamp: "just now",
+          isRepost: true,
+          originalPost,
+        }
+      : null;
+    const payload = {
+      originalPostId: `server-post-${postId}`,
+      repost,
+      reposts: Number(count.rows[0].count),
+      actorId: userId,
+    };
+    res.json({ reposted, reposts: payload.reposts, repost });
+    broadcastRealtimeEvent(reposted ? "post.reposted" : "post.unreposted", payload);
+  } catch (error) {
+    req.log?.error(error);
+    res.status(500).json({ error: "Unable to update repost." });
+  }
+});
+
+router.delete("/posts/:id", async (req, res) => {
+  const userId = requireAuth(req, res);
+  if (!userId) return;
+  const postId = parseServerId(req.params.id, "server-post-");
+  if (!postId) {
+    res.status(400).json({ error: "Invalid post id." });
+    return;
+  }
+  try {
+    const deleted = await pool.query(
+      "DELETE FROM gs_posts WHERE id = $1 AND user_id = $2 RETURNING id",
+      [postId, userId],
+    );
+    if (!deleted.rows[0]) {
+      res.status(404).json({ error: "Post not found or not owned by you." });
+      return;
+    }
+    const payload = { postId: req.params.id, actorId: userId };
+    res.json({ ok: true });
+    broadcastRealtimeEvent("post.deleted", payload);
+  } catch (error) {
+    req.log?.error(error);
+    res.status(500).json({ error: "Unable to delete post." });
   }
 });
 
@@ -613,7 +831,15 @@ router.post("/posts/:id/comments/:commentId/like", async (req, res) => {
       "SELECT COUNT(*)::int AS count FROM gs_post_comment_likes WHERE comment_id = $1",
       [commentId],
     );
-    res.json({ isLiked: !existing.rows[0], likes: count.rows[0].count });
+    const payload = {
+      postId: req.params.id,
+      commentId: req.params.commentId,
+      isLiked: !existing.rows[0],
+      likes: count.rows[0].count,
+      actorId: userId,
+    };
+    res.json({ isLiked: payload.isLiked, likes: payload.likes });
+    broadcastRealtimeEvent("comment.like.updated", payload);
   } catch {
     res.status(500).json({ error: "Unable to update comment like." });
   }
@@ -660,6 +886,26 @@ router.post("/posts/:id/comments", async (req, res) => {
         likes: 0,
         isLiked: false,
       },
+    });
+    broadcastRealtimeEvent("comment.created", {
+      postId: req.params.id,
+      comment: {
+        id: `server-comment-${result.rows[0].id}`,
+        postId: req.params.id,
+        userName: row.display_name || row.name || row.username,
+        userInitials: (row.display_name || row.name || row.username)
+          .split(/\s+/).map((part: string) => part[0]).join("").slice(0, 2).toUpperCase(),
+        userColor: row.color || "#4A90A4",
+        text,
+        timestamp: "just now",
+        likes: 0,
+        isLiked: false,
+      },
+      comments: Number(
+        (await pool.query("SELECT comments_count FROM gs_posts WHERE id = $1", [postId]))
+          .rows[0]?.comments_count || 0,
+      ),
+      actorId: userId,
     });
   } catch {
     res.status(500).json({ error: "Unable to add comment." });

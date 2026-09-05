@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   Platform,
@@ -164,7 +164,7 @@ type Tab = 'feed' | 'members' | 'about' | 'requests';
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export default function CommunityDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { communities, toggleJoin, requestJoin, startOrOpenConversation, approveJoinRequest, declineJoinRequest, addPost } = useApp();
+  const { communities, posts, toggleJoin, requestJoin, startOrOpenConversation, approveJoinRequest, declineJoinRequest, addPost } = useApp();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
@@ -177,6 +177,18 @@ export default function CommunityDetailScreen() {
   const [communityPosts, setCommunityPosts] = useState<Post[]>(SEED_POSTS);
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const { refreshing, onRefresh } = usePullToRefresh();
+
+  useEffect(() => {
+    const syncedPosts = posts.filter((post) => post.communityId === community?.id);
+    if (!community?.id) return;
+    setCommunityPosts((previous) => {
+      const localOnly = previous.filter(
+        (post) =>
+          !(post.id.startsWith('server-post-') || post.id.startsWith('server-repost-')),
+      );
+      return [...syncedPosts, ...localOnly];
+    });
+  }, [posts, community?.id]);
 
   // Video viewability tracking — same pattern as home feed
   const viewabilityConfig = useRef({ viewAreaCoveragePercentThreshold: 55 });
@@ -238,12 +250,12 @@ export default function CommunityDetailScreen() {
 
   // ── New post handler ─────────────────────────────────────────────────────
   const handleNewPost = useCallback(async (post: Omit<Post, 'id'>) => {
-    const result = await addPost(post);
-    if (result.ok) {
-      setCommunityPosts((prev) => [post as Post, ...prev]);
+    const result = await addPost({ ...post, communityId: community.id });
+    if (result.ok && result.post) {
+      setCommunityPosts((prev) => [result.post!, ...prev.filter((item) => item.id !== result.post!.id)]);
     }
     return result;
-  }, [addPost]);
+  }, [addPost, community.id]);
 
   const pendingMembers = community?.pendingMembers ?? [];
   const pendingCount = pendingMembers.length;
