@@ -189,7 +189,10 @@ export default function HomeScreen() {
         visible={storyViewerIndex !== null}
         onClose={() => setStoryViewerIndex(null)}
         onSeen={markSeen}
-        onRequestAddStory={() => setShowAddStory(true)}
+        onRequestAddStory={() => {
+          setStoryViewerIndex(null);
+          setShowAddStory(true);
+        }}
         onLike={toggleStoryLike}
         onReply={replyToStory}
         onShare={shareStory}

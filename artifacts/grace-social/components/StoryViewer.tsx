@@ -280,6 +280,16 @@ export function StoryViewer({
             </View>
             <Text style={styles.emptyTitle}>Share your story</Text>
             <Text style={styles.emptySub}>Add a photo, video, or text to share with your community.</Text>
+            <TouchableOpacity
+              style={styles.emptyAddBtn}
+              onPress={onRequestAddStory}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Add a story"
+            >
+              <Feather name="plus" size={18} color="#fff" />
+              <Text style={styles.emptyAddText}>Add story</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
