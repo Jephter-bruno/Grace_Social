@@ -430,7 +430,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   mediaScrim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.28)',
   },
   textModeInput: {

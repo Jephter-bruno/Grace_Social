@@ -590,7 +590,7 @@ const styles = StyleSheet.create({
   closeTop: { position: 'absolute', top: 16, right: 16, padding: 8, zIndex: 20 },
 
   // Background
-  scrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.25)' },
+  scrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.25)' },
 
   // Story body (text mode)
   storyBody: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 14 },
@@ -682,8 +682,8 @@ const styles = StyleSheet.create({
   peekAvatarText: { color: '#fff', fontSize: 9, fontFamily: 'Inter_700Bold' },
 
   // Analytics sheet
-  analyticsLayer: { ...StyleSheet.absoluteFillObject, zIndex: 50, justifyContent: 'flex-end' },
-  analyticsBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.48)' },
+  analyticsLayer: { ...StyleSheet.absoluteFill, zIndex: 50, justifyContent: 'flex-end' },
+  analyticsBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.48)' },
   analyticsSheet: {
     minHeight: '70%',
     maxHeight: '88%',

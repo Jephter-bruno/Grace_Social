@@ -215,7 +215,7 @@ function TestimonyCommentModal({
 
 const cm = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'flex-end' },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)' },
+  backdrop: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.45)' },
   sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '75%' },
   handleWrap: { alignItems: 'center', paddingTop: 12, paddingBottom: 4 },
   handle: { width: 36, height: 4, borderRadius: 2 },
@@ -513,7 +513,7 @@ const rd = StyleSheet.create({
   scroll: { flex: 1 },
   imageWrap: { height: 260, position: 'relative' },
   image: { width: '100%', height: '100%' },
-  imageScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.2)' },
+  imageScrim: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.2)' },
   verseWatermark: {
     position: 'absolute', bottom: 14, right: 16,
     fontSize: 13, fontFamily: 'Inter_400Regular', fontStyle: 'italic',

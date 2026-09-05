@@ -177,7 +177,7 @@ const mediaBubbleStyles = StyleSheet.create({
   wrap: { width: 220, height: 160, borderRadius: 12, overflow: 'hidden', position: 'relative' },
   img: { width: '100%', height: '100%' },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.35)',
