@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AvatarCircle } from '@/components/AvatarCircle';
 import { Community, useApp } from '@/context/AppContext';
 import { useAuth } from '@/context/AuthContext';
+import { useTestimonies } from '@/hooks/useTestimonies';
 import { useColors } from '@/hooks/useColors';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -105,6 +106,36 @@ const SEED_TESTIMONIES: Testimony[] = [
     ],
   },
 ];
+
+function mapPersistentTestimony(testimony: {
+  id: number;
+  title: string;
+  content: string;
+  likes_count: number;
+  display_name: string;
+  color: string;
+}): Testimony {
+  const initials = testimony.display_name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? '')
+    .join('');
+  return {
+    id: `server-testimony-${testimony.id}`,
+    category: 'Testimony',
+    categoryColor: CORAL,
+    imageUrl: `https://picsum.photos/seed/testimony-${testimony.id}/800/500`,
+    bibleVerse: '',
+    bibleText: '',
+    author: { name: testimony.display_name, initials, color: testimony.color || '#4A90A4' },
+    title: testimony.title,
+    excerpt: testimony.content,
+    fullText: testimony.content,
+    likes: testimony.likes_count,
+    comments: [],
+  };
+}
 
 function formatNum(n: number): string {
   return n >= 1000 ? `${(n / 1000).toFixed(1).replace('.0', '')}k` : `${n}`;
@@ -239,6 +270,7 @@ const cm = StyleSheet.create({
 
 function AllTestimoniesModal({
   visible,
+  testimonies,
   testimonyLikes,
   testimonyComments,
   onClose,
@@ -247,6 +279,7 @@ function AllTestimoniesModal({
   onOpenComments,
 }: {
   visible: boolean;
+  testimonies: Testimony[];
   testimonyLikes: Record<string, { liked: boolean; count: number }>;
   testimonyComments: Record<string, TestimonyComment[]>;
   onClose: () => void;
@@ -275,7 +308,7 @@ function AllTestimoniesModal({
         </View>
 
         <FlatList
-          data={SEED_TESTIMONIES}
+          data={testimonies}
           keyExtractor={(t) => t.id}
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ padding: 16, gap: 16, paddingBottom: insets.bottom + 24 }}
@@ -781,6 +814,17 @@ export default function CommunityScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
+  const { currentUser, isLoggedIn } = useAuth();
+  const {
+    testimonies: persistentTestimonies,
+    toggleLike: togglePersistentTestimonyLike,
+    fetchComments: fetchPersistentComments,
+    addComment: addPersistentComment,
+  } = useTestimonies();
+  const communityTestimonies = useMemo(
+    () => (isLoggedIn ? persistentTestimonies.map(mapPersistentTestimony) : SEED_TESTIMONIES),
+    [isLoggedIn, persistentTestimonies],
+  );
 
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<TabKey>('discover');
@@ -796,14 +840,82 @@ export default function CommunityScreen() {
   const [activeReadTestimony, setActiveReadTestimony] = useState<Testimony | null>(null);
   const [showAllTestimonies, setShowAllTestimonies] = useState(false);
 
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    setTestimonyLikes(
+      Object.fromEntries(
+        communityTestimonies.map((testimony) => {
+          const source = persistentTestimonies.find(
+            (item) => `server-testimony-${item.id}` === testimony.id,
+          );
+          return [testimony.id, { liked: Boolean(source?.is_liked), count: testimony.likes }];
+        }),
+      ),
+    );
+  }, [communityTestimonies, isLoggedIn, persistentTestimonies]);
+
   const toggleTestimonyLike = useCallback((id: string) => {
     setTestimonyLikes((prev) => {
-      const cur = prev[id];
+      const cur = prev[id] ?? { liked: false, count: 0 };
       return { ...prev, [id]: { liked: !cur.liked, count: cur.liked ? cur.count - 1 : cur.count + 1 } };
     });
-  }, []);
+    if (id.startsWith('server-testimony-')) {
+      const testimonyId = Number(id.replace('server-testimony-', ''));
+      if (Number.isInteger(testimonyId)) void togglePersistentTestimonyLike(testimonyId);
+    }
+  }, [togglePersistentTestimonyLike]);
 
-  const addTestimonyComment = useCallback((id: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => {
+  const openTestimonyComments = useCallback(async (testimony: Testimony) => {
+    setActiveCommentTestimony(testimony);
+    if (!testimony.id.startsWith('server-testimony-')) return;
+    const testimonyId = Number(testimony.id.replace('server-testimony-', ''));
+    if (!Number.isInteger(testimonyId)) return;
+    const comments = await fetchPersistentComments(testimonyId);
+    setTestimonyComments((prev) => ({
+      ...prev,
+      [testimony.id]: comments.map((comment) => ({
+        id: String(comment.id),
+        userName: comment.display_name,
+        userInitials: comment.display_name
+          .trim()
+          .split(/\s+/)
+          .slice(0, 2)
+          .map((part) => part[0]?.toUpperCase() ?? '')
+          .join(''),
+        userColor: comment.color || '#4A90A4',
+        text: comment.content,
+        timestamp: 'recently',
+      })),
+    }));
+  }, [fetchPersistentComments]);
+
+  const addTestimonyComment = useCallback(async (id: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => {
+    if (id.startsWith('server-testimony-')) {
+      const testimonyId = Number(id.replace('server-testimony-', ''));
+      if (!Number.isInteger(testimonyId)) return;
+      const comment = await addPersistentComment(testimonyId, text);
+      if (!comment) return;
+      setTestimonyComments((prev) => ({
+        ...prev,
+        [id]: [
+          ...(prev[id] ?? []),
+          {
+            id: String(comment.id),
+            userName: comment.display_name,
+            userInitials: comment.display_name
+              .trim()
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((part) => part[0]?.toUpperCase() ?? '')
+              .join(''),
+            userColor: comment.color || '#4A90A4',
+            text: comment.content,
+            timestamp: 'just now',
+          },
+        ],
+      }));
+      return;
+    }
     const newComment: TestimonyComment = {
       id: `tc-${Date.now()}`,
       userName: user?.userName ?? 'You',
@@ -813,7 +925,7 @@ export default function CommunityScreen() {
       timestamp: 'just now',
     };
     setTestimonyComments((prev) => ({ ...prev, [id]: [newComment, ...(prev[id] ?? [])] }));
-  }, []);
+  }, [addPersistentComment]);
 
   // ── Community filtering ──
   const searching = search.trim().length > 0;
@@ -829,8 +941,6 @@ export default function CommunityScreen() {
 
   const myGroups = useMemo(() => communities.filter((c) => c.isJoined), [communities]);
   const listData: Community[] = tab === 'mygroups' ? myGroups : discoverList;
-
-  const { currentUser } = useAuth();
 
   return (
     <View style={[s.container, { backgroundColor: colors.background }]}>
@@ -875,18 +985,24 @@ export default function CommunityScreen() {
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={{ gap: 12, paddingRight: 4 }}
               >
-                {SEED_TESTIMONIES.map((t) => (
-                  <TestimonyCard
-                    key={t.id}
-                    item={t}
-                    liked={testimonyLikes[t.id]?.liked ?? false}
-                    likeCount={testimonyLikes[t.id]?.count ?? t.likes}
-                    comments={testimonyComments[t.id] ?? []}
-                    onLike={() => toggleTestimonyLike(t.id)}
-                    onRead={() => setActiveReadTestimony(t)}
-                    onOpenComments={() => setActiveCommentTestimony(t)}
-                  />
-                ))}
+                {communityTestimonies.length === 0 ? (
+                  <Text style={[s.emptySub, { color: colors.mutedForeground }]}>
+                    No testimonies have been shared yet.
+                  </Text>
+                ) : (
+                  communityTestimonies.map((t) => (
+                    <TestimonyCard
+                      key={t.id}
+                      item={t}
+                      liked={testimonyLikes[t.id]?.liked ?? false}
+                      likeCount={testimonyLikes[t.id]?.count ?? t.likes}
+                      comments={testimonyComments[t.id] ?? []}
+                      onLike={() => toggleTestimonyLike(t.id)}
+                      onRead={() => setActiveReadTestimony(t)}
+                      onOpenComments={() => { void openTestimonyComments(t); }}
+                    />
+                  ))
+                )}
               </ScrollView>
             </View>
 
@@ -944,12 +1060,13 @@ export default function CommunityScreen() {
       {/* ── All testimonies modal ── */}
       <AllTestimoniesModal
         visible={showAllTestimonies}
+        testimonies={communityTestimonies}
         testimonyLikes={testimonyLikes}
         testimonyComments={testimonyComments}
         onClose={() => setShowAllTestimonies(false)}
         onLike={(id) => toggleTestimonyLike(id)}
         onRead={(t) => { setShowAllTestimonies(false); setActiveReadTestimony(t); }}
-        onOpenComments={(t) => { setShowAllTestimonies(false); setActiveCommentTestimony(t); }}
+        onOpenComments={(t) => { setShowAllTestimonies(false); void openTestimonyComments(t); }}
       />
 
       {/* ── Testimony read modal ── */}
@@ -974,7 +1091,7 @@ export default function CommunityScreen() {
           comments={testimonyComments[activeCommentTestimony.id] ?? []}
           onClose={() => setActiveCommentTestimony(null)}
           onAddComment={(text) => {
-            addTestimonyComment(
+            void addTestimonyComment(
               activeCommentTestimony.id,
               text,
               currentUser

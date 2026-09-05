@@ -24,3 +24,9 @@ When the lockfile or artifact manifests change, existing workspace links can rem
 **Why:** A stale install hid `expo-audio`, omitted `multer`, and left the API serving a pre-social-router bundle even though the source mount was already updated.
 
 **How to apply:** After dependency or route-mount changes, verify the resolved package from the artifact path, rebuild/restart the relevant workflow, and smoke-test the actual proxied endpoint rather than relying only on source inspection.
+
+The local API smoke test should run only after restarting the API workflow; otherwise an older bundle can return 404 for routes that are present in the current source.
+
+**Why:** The running process is not automatically rebuilt when route files change, so source inspection alone can produce a false verification result.
+
+**How to apply:** Restart the exact API workflow after route or schema changes, then check `/api/healthz` and the affected endpoint before testing authenticated flows.

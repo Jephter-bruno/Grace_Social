@@ -695,7 +695,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         ),
       ];
     });
-  }, []);
+  }, [authToken]);
 
   // Per-user follow state keyed by userHandle — seed with handles already followed in initial reels
   const [followedHandles, setFollowedHandles] = useState<Record<string, boolean>>({
@@ -804,7 +804,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
     setReels((prev) => [result.data.reel!, ...prev.filter((item) => item.id !== result.data.reel!.id)]);
     return { ok: true };
-  }, []);
+  }, [authToken]);
 
   const addComment = useCallback((postId: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => {
     const newComment: Comment = { id: Date.now().toString() + Math.random().toString(36).substr(2, 9), postId, userName: user?.userName ?? 'You', userInitials: user?.userInitials ?? 'ME', userColor: user?.userColor ?? '#4A90A4', text, timestamp: 'just now', likes: 0, isLiked: false };

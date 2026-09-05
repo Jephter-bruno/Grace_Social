@@ -206,11 +206,12 @@ export function useStories() {
     viewers: [],
   };
 
-  const stories: Story[] = [
-    ownStory,
-    ...serverStories.filter((story) => !story.isOwn),
-    ...MOCK_STORIES.map((s) => ({ ...s, seen: seenMap[s.id] ?? false })),
-  ];
+  const stories: Story[] = authToken
+    ? [ownStory, ...serverStories.filter((story) => !story.isOwn)]
+    : [
+        ownStory,
+        ...MOCK_STORIES.map((s) => ({ ...s, seen: seenMap[s.id] ?? false })),
+      ];
 
   const markSeen = useCallback((storyId: string) => {
     setSeenMap((prev) => ({ ...prev, [storyId]: true }));
