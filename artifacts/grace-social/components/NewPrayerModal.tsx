@@ -54,6 +54,7 @@ export function NewPrayerModal({ visible, onClose }: Props) {
       request: request.trim(),
       prayerCount: 0,
       isPraying: false,
+      comments: 0,
       timestamp: 'just now',
       category,
     });

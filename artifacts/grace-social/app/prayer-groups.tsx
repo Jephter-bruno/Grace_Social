@@ -225,7 +225,7 @@ function CircleDetail({
           {circle.groupPrayerList.length > 0 ? (
             circle.groupPrayerList.map((item, i) => (
               <View key={`${item}-${i}`} style={[styles.prayerListItem, { borderTopColor: colors.border }]}>
-                <Feather name="cross" size={14} color={CORAL} />
+                <Feather name="plus" size={14} color={CORAL} />
                 <Text style={[styles.prayerListText, { color: colors.foreground }]}>{item}</Text>
               </View>
             ))

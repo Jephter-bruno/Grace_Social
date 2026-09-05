@@ -1,12 +1,12 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, ViewStyle } from 'react-native';
+import { StyleProp, StyleSheet, ViewStyle } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 
 interface VideoPlayerProps {
   uri: string;
   isActive: boolean;
   muted?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   loop?: boolean;
   contentFit?: 'cover' | 'contain' | 'fill';
 }

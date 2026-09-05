@@ -536,7 +536,7 @@ const INITIAL_NOTIFICATIONS: Notification[] = [
   { id: 'n9', type: 'share', userName: 'James O.', userInitials: 'JO', userColor: '#16A085', message: 'shared your post with their followers.', timestamp: '6h ago', postImageIndex: 0, targetTab: '/', isRead: true, createdAt: NOW - 6 * HOUR },
   { id: 'n10', type: 'community_invite', userName: 'Ruth M.', userInitials: 'RM', userColor: '#9B59B6', message: 'invited you to join "Daily Devotions" community.', timestamp: '1d ago', targetTab: '/community', isRead: true, createdAt: NOW - DAY },
   { id: 'n11', type: 'repost', userName: 'Worship House', userInitials: 'WH', userColor: '#3B82F6', message: 'reposted your devotional post.', timestamp: '1d ago', postImageIndex: 2, targetTab: '/', isRead: true, createdAt: NOW - DAY - HOUR },
-  { id: 'n12', type: 'dm', userName: 'Sarah M.', userInitials: 'SM', color: '#E91E8C', userColor: '#E91E8C', message: 'sent you a message: "Can we pray together sometime?"', timestamp: '2d ago', targetTab: '/messages', isRead: true, createdAt: NOW - 2 * DAY },
+  { id: 'n12', type: 'dm', userName: 'Sarah M.', userInitials: 'SM', userColor: '#E91E8C', message: 'sent you a message: "Can we pray together sometime?"', timestamp: '2d ago', targetTab: '/messages', isRead: true, createdAt: NOW - 2 * DAY },
   { id: 'n13', type: 'comment_like', userName: 'John A.', userInitials: 'JA', userColor: '#F59E0B', message: 'liked your comment on Pastor James\'s post.', timestamp: '2d ago', postImageIndex: 0, targetTab: '/', isRead: true, createdAt: NOW - 2 * DAY - HOUR },
 ];
 
