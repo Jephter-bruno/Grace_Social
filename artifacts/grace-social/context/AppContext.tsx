@@ -1,5 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { REEL_VIDEOS, POST_VIDEOS } from '@/constants/videos';
+import { useAuth } from '@/context/AuthContext';
+import { socialRequest, uploadSocialMedia } from '@/lib/socialApi';
 
 export type PrayerCategory = 'health' | 'family' | 'work' | 'faith' | 'gratitude';
 
@@ -541,6 +543,7 @@ const INITIAL_NOTIFICATIONS: Notification[] = [
 ];
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
+  const { authToken } = useAuth();
   const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
   const [prayers, setPrayers] = useState<Prayer[]>(INITIAL_PRAYERS);
   const [reels, setReels] = useState<Reel[]>(INITIAL_REELS);
@@ -552,9 +555,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
+  useEffect(() => {
+    if (!authToken) return;
+    void socialRequest<{ posts?: Post[] }>('/posts', { token: authToken }).then((result) => {
+      if (!result.ok || !Array.isArray(result.data.posts)) return;
+      setPosts((prev) => [
+        ...result.data.posts!,
+        ...prev.filter((post) => !post.id.startsWith('server-post-')),
+      ]);
+    });
+  }, [authToken]);
+
   const toggleLike = useCallback((postId: string) => {
     setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, isLiked: !p.isLiked, likes: p.isLiked ? p.likes - 1 : p.likes + 1 } : p));
-  }, []);
+    if (authToken && postId.startsWith('server-post-')) {
+      void socialRequest(`/posts/${postId}/like`, { method: 'POST', token: authToken });
+    }
+  }, [authToken]);
 
   const toggleSave = useCallback((postId: string) => {
     setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, isSaved: !p.isSaved } : p)));
@@ -578,7 +595,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const incrementPostShares = useCallback((postId: string) => {
     setPosts((prev) => prev.map((p) => p.id === postId ? { ...p, shares: p.shares + 1 } : p));
-  }, []);
+    if (authToken && postId.startsWith('server-post-')) {
+      void socialRequest(`/posts/${postId}/share`, { method: 'POST', token: authToken });
+    }
+  }, [authToken]);
 
   const resharePost = useCallback((
     postId: string,
@@ -687,9 +707,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const addPost = useCallback((post: Omit<Post, 'id'>) => {
-    const newPost: Post = { ...post, id: Date.now().toString() + Math.random().toString(36).substr(2, 9) };
+    const localId = `pending-post-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const newPost: Post = { ...post, id: localId };
     setPosts((prev) => [newPost, ...prev]);
-  }, []);
+    if (!authToken) return;
+
+    void (async () => {
+      const sourceItems = post.mediaItems ?? [
+        ...(post.localImageUri ? [{ uri: post.localImageUri, type: 'image' as const }] : []),
+        ...(post.videoUri ? [{ uri: post.videoUri, type: 'video' as const }] : []),
+      ];
+      const uploadedItems: { mediaId: number; type: 'image' | 'video' }[] = [];
+      for (const item of sourceItems) {
+        const uploaded = await uploadSocialMedia(item.uri, item.type, authToken);
+        if (!uploaded.ok || !uploaded.id) return;
+        uploadedItems.push({ mediaId: uploaded.id, type: item.type });
+      }
+      const result = await socialRequest<{ post?: Post }>('/posts', {
+        method: 'POST',
+        token: authToken,
+        body: {
+          caption: post.caption,
+          bibleVerse: post.bibleVerse,
+          mediaItems: uploadedItems,
+        },
+      });
+      if (result.ok && result.data.post) {
+        setPosts((prev) => [result.data.post!, ...prev.filter((item) => item.id !== localId)]);
+      }
+    })();
+  }, [authToken]);
 
   const addReel = useCallback((reel: Omit<Reel, 'id'>) => {
     const newReel: Reel = { ...reel, id: Date.now().toString() + Math.random().toString(36).substr(2, 9) };
@@ -700,7 +747,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const newComment: Comment = { id: Date.now().toString() + Math.random().toString(36).substr(2, 9), postId, userName: user?.userName ?? 'You', userInitials: user?.userInitials ?? 'ME', userColor: user?.userColor ?? '#4A90A4', text, timestamp: 'just now', likes: 0, isLiked: false };
     setCommentsByPost((prev) => ({ ...prev, [postId]: [newComment, ...(prev[postId] ?? [])] }));
     setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, comments: p.comments + 1 } : p)));
-  }, []);
+    if (authToken && postId.startsWith('server-post-')) {
+      void socialRequest<{ comment?: Comment }>(`/posts/${postId}/comments`, {
+        method: 'POST',
+        token: authToken,
+        body: { text },
+      }).then((result) => {
+        if (result.ok && result.data.comment) {
+          setCommentsByPost((prev) => ({
+            ...prev,
+            [postId]: [
+              result.data.comment!,
+              ...(prev[postId] ?? []).filter((comment) => comment.id !== newComment.id),
+            ],
+          }));
+        }
+      });
+    }
+  }, [authToken]);
 
   const addPrayerComment = useCallback((prayerId: string, text: string, user?: { userName: string; userInitials: string; userColor: string }) => {
     const newComment: Comment = { id: Date.now().toString() + Math.random().toString(36).substr(2, 9), postId: prayerId, userName: user?.userName ?? 'You', userInitials: user?.userInitials ?? 'ME', userColor: user?.userColor ?? '#4A90A4', text, timestamp: 'just now', likes: 0, isLiked: false };

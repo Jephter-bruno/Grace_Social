@@ -33,6 +33,9 @@ interface StoryViewerProps {
   onClose: () => void;
   onSeen: (storyId: string) => void;
   onRequestAddStory: () => void;
+  onLike?: (storyId: string, itemId: string) => void;
+  onReply?: (storyId: string, itemId: string, text: string) => void;
+  onShare?: (storyId: string) => void;
 }
 
 export function StoryViewer({
@@ -42,6 +45,9 @@ export function StoryViewer({
   onClose,
   onSeen,
   onRequestAddStory,
+  onLike,
+  onReply,
+  onShare,
 }: StoryViewerProps) {
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
@@ -63,21 +69,6 @@ export function StoryViewer({
   const heartScaleAnim = useRef(new Animated.Value(1)).current;
   const heartOpacityAnim = useRef(new Animated.Value(0)).current;
   const analyticsY = useRef(new Animated.Value(0)).current;
-
-  const viewerNames = ['Sarah Williams', 'Pastor James', 'Mary K.', 'David L.', 'Grace Ministry', 'Thomas B.'];
-  const viewerColors = ['#E91E8C', '#D4A843', '#9B59B6', '#27AE60', '#F39C12', '#E74C3C'];
-  const viewers = viewerNames.map((name, index) => ({
-    id: `${storyIndex}-${index}`,
-    username: name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
-    name,
-    initials: name.split(' ').map((part) => part[0]).join('').slice(0, 2),
-    color: viewerColors[index],
-    time: `${index + 1}h ago`,
-    liked: index === 0 || index === 3,
-  }));
-  const filteredViewers = viewers.filter((viewer) =>
-    `${viewer.username} ${viewer.name}`.toLowerCase().includes(viewerSearch.toLowerCase().trim())
-  );
 
   const showAnalytics = useCallback(() => {
     setAnalyticsVisible(true);
@@ -114,10 +105,14 @@ export function StoryViewer({
 
   const currentStory = stories[storyIndex];
   const currentItem: StoryItem | undefined = currentStory?.items[itemIndex];
+  const viewers = currentStory?.viewers ?? [];
+  const filteredViewers = viewers.filter((viewer) =>
+    `${viewer.username} ${viewer.name}`.toLowerCase().includes(viewerSearch.toLowerCase().trim())
+  );
   const isOwnEmpty = currentStory?.isOwn && currentStory.items.length === 0;
   const itemCount = currentStory?.items.length ?? 0;
   const likeKey = `${storyIndex}-${itemIndex}`;
-  const isLiked = likedMap[likeKey] ?? false;
+  const isLiked = likedMap[likeKey] ?? currentItem?.isLiked ?? false;
 
   // ── Progress bar ──
   const stopAnim = useCallback(() => {
@@ -205,7 +200,8 @@ export function StoryViewer({
 
   // ── Actions ──
   const handleLike = useCallback(() => {
-    setLikedMap((prev) => ({ ...prev, [likeKey]: !prev[likeKey] }));
+    setLikedMap((prev) => ({ ...prev, [likeKey]: !isLiked }));
+    if (currentStory && currentItem) onLike?.(currentStory.id, currentItem.id);
 
     // Burst animation
     heartScaleAnim.setValue(0.8);
@@ -225,21 +221,23 @@ export function StoryViewer({
     } else {
       heartOpacityAnim.setValue(0);
     }
-  }, [likeKey, isLiked, heartScaleAnim, heartOpacityAnim]);
+  }, [currentStory, currentItem, likeKey, isLiked, heartScaleAnim, heartOpacityAnim, onLike]);
 
   const handleSendReply = useCallback(() => {
     if (!replyText.trim()) return;
+    if (currentStory && currentItem) onReply?.(currentStory.id, currentItem.id, replyText.trim());
     setSentMap((prev) => ({ ...prev, [likeKey]: true }));
     setReplyText('');
     inputRef.current?.blur();
     setTimeout(() => {
       setSentMap((prev) => ({ ...prev, [likeKey]: false }));
     }, 2000);
-  }, [replyText, likeKey]);
+  }, [replyText, likeKey, currentStory, currentItem, onReply]);
 
   const handleShare = useCallback(async () => {
     stopAnim();
     try {
+      if (currentStory) onShare?.(currentStory.id);
       const storyAuthor = currentStory?.displayName ?? 'Someone';
       const storyText = currentItem?.text ?? currentItem?.scripture?.text ?? 'a story';
       await Share.share({
@@ -249,7 +247,7 @@ export function StoryViewer({
     } catch (_) {}
     // Resume after share sheet dismisses
     setTimeout(() => { if (!inputFocused) startAnim(); }, 500);
-  }, [currentStory, currentItem, inputFocused]);
+  }, [currentStory, currentItem, inputFocused, onShare]);
 
   if (!currentStory) return null;
 
@@ -411,7 +409,7 @@ export function StoryViewer({
             <View style={styles.analyticsPeekRow}>
               <View style={styles.viewCount}>
                 <Feather name="eye" size={16} color="#fff" />
-                <Text style={styles.viewCountText}>1,248 views</Text>
+                <Text style={styles.viewCountText}>{(currentStory.viewCount ?? 0).toLocaleString()} views</Text>
               </View>
               <View style={styles.peekAvatars}>
                 {viewers.slice(0, 4).map((viewer, index) => (
@@ -511,7 +509,7 @@ export function StoryViewer({
                   )}
                 </View>
                 <View style={styles.analyticsCountBlock}>
-                  <Text style={styles.analyticsCount}>1.2K</Text>
+                   <Text style={styles.analyticsCount}>{(currentStory.viewCount ?? 0).toLocaleString()}</Text>
                   <Text style={styles.analyticsCountLabel}>Views</Text>
                 </View>
                 <View style={styles.summaryAvatars}>

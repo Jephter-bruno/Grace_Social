@@ -68,7 +68,14 @@ export default function HomeScreen() {
   const [activePostId, setActivePostId] = useState<string | null>(null);
   const [storyViewerIndex, setStoryViewerIndex] = useState<number | null>(null);
   const [showAddStory, setShowAddStory] = useState(false);
-  const { stories, markSeen, addOwnStory } = useStories();
+  const {
+    stories,
+    markSeen,
+    addOwnStory,
+    toggleStoryLike,
+    replyToStory,
+    shareStory,
+  } = useStories();
 
   useEffect(() => {
     if (pendingVerse) {
@@ -183,6 +190,9 @@ export default function HomeScreen() {
         onClose={() => setStoryViewerIndex(null)}
         onSeen={markSeen}
         onRequestAddStory={() => setShowAddStory(true)}
+        onLike={toggleStoryLike}
+        onReply={replyToStory}
+        onShare={shareStory}
       />
 
       <AddStorySheet

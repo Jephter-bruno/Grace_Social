@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { socialRequest, uploadSocialMedia } from '@/lib/socialApi';
 
 export interface StoryScripture {
   reference: string;
@@ -20,6 +21,18 @@ export interface StoryItem {
   // media
   mediaUri?: string;
   mediaType?: 'image' | 'video';
+  likeCount?: number;
+  isLiked?: boolean;
+}
+
+export interface StoryViewerRecord {
+  id: string;
+  username: string;
+  name: string;
+  initials: string;
+  color: string;
+  time: string;
+  liked: boolean;
 }
 
 export interface Story {
@@ -33,6 +46,8 @@ export interface Story {
   items: StoryItem[];
   seen: boolean;
   isOwn?: boolean;
+  viewCount?: number;
+  viewers?: StoryViewerRecord[];
 }
 
 export interface AddStoryPayload {
@@ -148,46 +163,111 @@ const MOCK_STORIES: Omit<Story, 'seen'>[] = [
 ];
 
 export function useStories() {
-  const { currentUser } = useAuth();
+  const { currentUser, authToken } = useAuth();
   const [seenMap, setSeenMap] = useState<Record<string, boolean>>({});
   const [ownItems, setOwnItems] = useState<StoryItem[]>([]);
+  const [serverStories, setServerStories] = useState<Story[]>([]);
+
+  const refreshStories = useCallback(async () => {
+    if (!authToken) {
+      setServerStories([]);
+      return;
+    }
+    const result = await socialRequest<{ stories?: Story[] }>('/stories', { token: authToken });
+    if (result.ok && Array.isArray(result.data.stories)) {
+      setServerStories(result.data.stories);
+      const own = result.data.stories.find((story) => story.isOwn);
+      setOwnItems(own?.items ?? []);
+    }
+  }, [authToken]);
+
+  useEffect(() => {
+    void refreshStories();
+  }, [refreshStories]);
+
+  const serverOwnStory = serverStories.find((story) => story.isOwn);
+  const ownStory: Story = serverOwnStory ?? {
+    id: 'story-own',
+    userId: currentUser?.id ?? 0,
+    displayName: currentUser?.displayName ?? currentUser?.name ?? 'You',
+    username: currentUser?.username ?? '',
+    color: currentUser?.color ?? '#4A90A4',
+    avatarUrl: currentUser?.avatarUrl ?? null,
+    initials: currentUser?.initials ?? 'Me',
+    items: ownItems,
+    seen: false,
+    isOwn: true,
+    viewCount: 0,
+    viewers: [],
+  };
 
   const stories: Story[] = [
-    {
-      id: 'story-own',
-      userId: currentUser?.id ?? 0,
-      displayName: currentUser?.displayName ?? currentUser?.name ?? 'You',
-      username: currentUser?.username ?? '',
-      color: currentUser?.color ?? '#4A90A4',
-      avatarUrl: currentUser?.avatarUrl ?? null,
-      initials: currentUser?.initials ?? 'Me',
-      items: ownItems,
-      seen: false,
-      isOwn: true,
-    },
+    ownStory,
+    ...serverStories.filter((story) => !story.isOwn),
     ...MOCK_STORIES.map((s) => ({ ...s, seen: seenMap[s.id] ?? false })),
   ];
 
   const markSeen = useCallback((storyId: string) => {
     setSeenMap((prev) => ({ ...prev, [storyId]: true }));
-  }, []);
+    if (authToken && storyId.startsWith('server-story-')) {
+      void socialRequest(`/stories/${storyId}/view`, { method: 'POST', token: authToken }).then(() => {
+        void refreshStories();
+      });
+    }
+  }, [authToken, refreshStories]);
 
-  const addOwnStory = useCallback((payload: AddStoryPayload) => {
-    const item: StoryItem = {
-      id: `own-${Date.now()}`,
-      text: payload.text,
-      gradient: payload.gradient,
-      scripture: payload.scripture,
-      mediaUri: payload.mediaUri,
-      mediaType: payload.mediaType,
-      timestamp: 'Just now',
-    };
-    setOwnItems((prev) => [...prev, item]);
-  }, []);
+  const addOwnStory = useCallback(async (payload: AddStoryPayload) => {
+    if (!authToken) return;
+    let mediaId: number | undefined;
+    if (payload.mediaUri && payload.mediaType) {
+      const upload = await uploadSocialMedia(payload.mediaUri, payload.mediaType, authToken);
+      if (!upload.ok || !upload.id) return;
+      mediaId = upload.id;
+    }
+    const result = await socialRequest('/stories', {
+      method: 'POST',
+      token: authToken,
+      body: {
+        text: payload.text,
+        gradient: payload.gradient,
+        scripture: payload.scripture,
+        mediaId,
+        mediaType: payload.mediaType,
+      },
+    });
+    if (result.ok) await refreshStories();
+  }, [authToken, refreshStories]);
 
   const deleteOwnStory = useCallback(() => {
     setOwnItems([]);
   }, []);
+
+  const toggleStoryLike = useCallback(async (storyId: string, itemId: string) => {
+    if (!authToken || !storyId.startsWith('server-story-') || !itemId.startsWith('server-story-item-')) return;
+    const result = await socialRequest(`/stories/${storyId}/like`, {
+      method: 'POST',
+      token: authToken,
+      body: { itemId: Number(itemId.replace('server-story-item-', '')) },
+    });
+    if (result.ok) await refreshStories();
+  }, [authToken, refreshStories]);
+
+  const replyToStory = useCallback(async (storyId: string, itemId: string, text: string) => {
+    if (!authToken || !storyId.startsWith('server-story-') || !itemId.startsWith('server-story-item-')) return;
+    await socialRequest(`/stories/${storyId}/replies`, {
+      method: 'POST',
+      token: authToken,
+      body: {
+        itemId: Number(itemId.replace('server-story-item-', '')),
+        text,
+      },
+    });
+  }, [authToken]);
+
+  const shareStory = useCallback(async (storyId: string) => {
+    if (!authToken || !storyId.startsWith('server-story-')) return;
+    await socialRequest(`/stories/${storyId}/share`, { method: 'POST', token: authToken });
+  }, [authToken]);
 
   return {
     stories,
@@ -195,5 +275,8 @@ export function useStories() {
     addOwnStory,
     deleteOwnStory,
     hasOwnStory: ownItems.length > 0,
+    toggleStoryLike,
+    replyToStory,
+    shareStory,
   };
 }
